@@ -20,7 +20,7 @@ interface FileUploadProps {
 export function FileUpload({
   onFileUpload,
   disabled = false,
-  accept = ".mpp,.xlsx,.xls,.csv,.pdf,.json,.txt", // Default accept types
+  accept = ".txt,.csv,.json,.pdf,.xlsx,.xls,.mpp,.docx,.pptx", // Default accept types including docx, pptx
 }: FileUploadProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -140,8 +140,8 @@ export function FileUpload({
           <p className="mb-2 text-sm text-foreground">
             <span className="font-semibold">Click to upload</span> or drag and drop
           </p>
-          <p className="text-xs text-muted-foreground">
-             Multiple files allowed (e.g., .csv, .json, .txt, .pdf, .xlsx, .mpp)
+          <p className="text-xs text-muted-foreground px-2">
+             Multiple files allowed (e.g., .txt, .csv, .json, .pdf, .xlsx, .docx, .pptx, .mpp). Text content extracted from TXT, CSV, JSON.
           </p>
           {selectedFiles.length === 0 && (
              <Button onClick={handleButtonClick} disabled={disabled} className="mt-4 sm:w-auto" size="sm">

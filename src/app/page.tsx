@@ -44,7 +44,7 @@ export default function Home() {
   const { toast } = useToast(); // Initialize toast
 
 
-  // Helper function to extract text content from a Data URI (copied/adapted from flows)
+  // Helper function to extract text content from a Data URI
   const extractTextFromDataUri = useCallback((dataUri: string, mimeType: string): { success: boolean; content: string } => {
       const match = dataUri.match(/^data:(.+?);base64,(.+)$/);
       if (!match) {
@@ -54,6 +54,7 @@ export default function Home() {
       const base64Data = match[2];
 
       try {
+        // Supported text types for content extraction
         if (actualMimeType.startsWith('text/') || actualMimeType === 'application/json' || actualMimeType === 'application/csv') {
            const decodedData = Buffer.from(base64Data, 'base64').toString('utf-8');
            const MAX_LENGTH = 50000; // Limit characters per file
@@ -62,7 +63,7 @@ export default function Home() {
              : decodedData;
            return { success: true, content: truncatedContent };
         }
-        // Return skip messages for unsupported types, but don't treat as errors here
+        // Known unsupported types (skipped for text content)
         if (actualMimeType === 'application/pdf') {
           return { success: false, content: "[Skipped PDF: Cannot extract text content.]" };
         }
@@ -72,12 +73,19 @@ export default function Home() {
         if (actualMimeType === 'application/vnd.ms-excel') { // XLS
             return { success: false, content: "[Skipped XLS: Cannot extract text content.]" };
         }
+        if (actualMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // DOCX
+             return { success: false, content: "[Skipped DOCX: Cannot extract text content.]" };
+        }
+        if (actualMimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') { // PPTX
+             return { success: false, content: "[Skipped PPTX: Cannot extract text content.]" };
+        }
          if (actualMimeType === 'application/vnd.ms-project' || actualMimeType === 'application/msproj') { // MPP
            return { success: false, content: "[Skipped MPP: Cannot extract project file content.]" };
          }
          if (actualMimeType.startsWith('image/') || actualMimeType.startsWith('video/') || actualMimeType.startsWith('audio/')) {
             return { success: false, content: `[Skipped Media File (${actualMimeType}): Cannot extract text content.]` };
          }
+        // Catch-all for other unsupported types
         return { success: false, content: `[Skipped Unsupported File Type (${actualMimeType}): Cannot extract text content.]` };
       } catch (error) {
         console.error("Error decoding base64 data:", error);
@@ -207,7 +215,7 @@ export default function Home() {
         }
       } else {
           setPromptSuggestions([]);
-          if (!error) {
+          if (!error && summaryResponse.summary) { // Only set error if summary exists and failed
               setError(summaryResponse.summary);
           }
       }
@@ -300,8 +308,8 @@ export default function Home() {
   // Determine combined loading state for disabling inputs
   const isProcessing = isReadingFiles || isSummarizing || isLoadingChatInput || isGeneratingSuggestions || isGeneratingFinalPrompt;
   const summaryActive = !!selectedIndustry && uploadedFiles.length > 0;
-  const customizationActive = summaryActive && !!projectSummary; // Renamed from chatActive
-  const generatePromptActive = customizationActive; // Can generate prompt once summary is done
+  const customizationActive = summaryActive && !!projectSummary && !projectSummary.startsWith("Could not process"); // Enable only if summary succeeded
+  const generatePromptActive = customizationActive; // Can generate prompt once summary is done and valid
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-12 lg:p-24 bg-background">
@@ -334,6 +342,7 @@ export default function Home() {
               selectedIndustry={selectedIndustry}
               onSelectIndustry={(industry) => {
                 setSelectedIndustry(industry);
+                setError(null); // Clear errors on industry change
                 setProjectSummary(null);
                 setPromptSuggestions([]);
                 setCustomizationMessages([]);
@@ -351,13 +360,13 @@ export default function Home() {
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle>Step 2: Upload Project Files</CardTitle>
-            <CardDescription>Upload context files (e.g., .txt, .csv, .json). PDF, XLSX, MPP will be skipped.</CardDescription>
+            <CardDescription>Upload context files (e.g., .txt, .csv, .json). PDF, XLSX, DOCX, PPTX, MPP will be skipped for text extraction.</CardDescription>
           </CardHeader>
           <CardContent>
             <FileUpload
               onFileUpload={handleFileUpload}
               disabled={isProcessing}
-              accept=".txt,.csv,.json,.pdf,.xlsx,.xls,.mpp"
+              accept=".txt,.csv,.json,.pdf,.xlsx,.xls,.mpp,.docx,.pptx" // Updated accepted types
             />
              {isReadingFiles && (
                 <div className="flex items-center justify-center space-x-2 text-muted-foreground mt-4">
@@ -372,7 +381,7 @@ export default function Home() {
         <Card className={`w-full shadow-lg ${!summaryActive || isProcessing ? 'opacity-60' : ''}`}>
            <CardHeader>
             <CardTitle>Step 3: Generate Summary & Customization Suggestions</CardTitle>
-            <CardDescription>Analyzes files to create a project summary and suggests areas for prompt customization.</CardDescription>
+            <CardDescription>Analyzes text from compatible files (TXT, CSV, JSON) to create a project summary and suggests areas for prompt customization.</CardDescription>
            </CardHeader>
            <CardContent>
              {(isSummarizing || isGeneratingSuggestions) ? (
@@ -384,6 +393,7 @@ export default function Home() {
                  <div className="space-y-3">
                    <h4 className="font-medium text-foreground">AI Generated Summary:</h4>
                     <ScrollArea className="h-40 w-full rounded-md border p-3 bg-muted/30">
+                     {/* Display summary OR error message if summary failed */}
                      <p className="text-sm text-foreground whitespace-pre-wrap">{projectSummary}</p>
                    </ScrollArea>
                  </div>
@@ -417,7 +427,7 @@ export default function Home() {
           <CardHeader>
             <CardTitle>Step 4: Customize Your Prompt</CardTitle>
             <CardDescription>
-               {customizationActive ? "Use the suggestions or add specific details/requirements for the final prompt." : "Generate summary & suggestions first to enable customization."}
+               {customizationActive ? "Use the suggestions or add specific details/requirements for the final prompt." : "Generate a successful summary & suggestions first to enable customization."}
             </CardDescription>
           </CardHeader>
           <CardContent>

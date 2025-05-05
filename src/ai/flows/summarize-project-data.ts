@@ -11,9 +11,6 @@ import {ai} from '@/ai/ai-instance';
 import {z} from 'genkit';
 
 // Re-use FileInput schema structure (or import if separated)
-// Note: While the UI extracts text beforehand, this flow's internal prompt
-// still expects data URIs via the `files` array for consistency with its current implementation.
-// A future refactor could simplify this to accept only combined text.
 const FileInputSchema = z.object({
   fileDataUri: z
     .string()
@@ -40,7 +37,7 @@ const SummarizeProjectDataOutputSchema = z.object({
 export type SummarizeProjectDataOutput = z.infer<typeof SummarizeProjectDataOutputSchema>;
 
 
-// Helper function to extract text content from a Data URI (remains for internal flow use if needed, but UI pre-extracts)
+// Helper function to extract text content from a Data URI (remains for internal flow use)
 function extractTextFromDataUri(dataUri: string, mimeType: string): { success: boolean; content: string } {
   const match = dataUri.match(/^data:(.+?);base64,(.+)$/);
   if (!match) {
@@ -50,6 +47,7 @@ function extractTextFromDataUri(dataUri: string, mimeType: string): { success: b
   const base64Data = match[2];
 
   try {
+    // Supported text types for content extraction
     if (actualMimeType.startsWith('text/') || actualMimeType === 'application/json' || actualMimeType === 'application/csv') {
        const decodedData = Buffer.from(base64Data, 'base64').toString('utf-8');
        const MAX_LENGTH = 50000; // Limit characters per file
@@ -58,12 +56,29 @@ function extractTextFromDataUri(dataUri: string, mimeType: string): { success: b
          : decodedData;
        return { success: true, content: truncatedContent };
     }
-    // Return skip messages for unsupported types
-    if (actualMimeType === 'application/pdf') return { success: false, content: "[Skipped PDF: Cannot extract text content.]" };
-    if (actualMimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return { success: false, content: "[Skipped XLSX: Cannot extract text content.]" };
-    if (actualMimeType === 'application/vnd.ms-excel') return { success: false, content: "[Skipped XLS: Cannot extract text content.]" };
-    if (actualMimeType === 'application/vnd.ms-project' || actualMimeType === 'application/msproj') return { success: false, content: "[Skipped MPP: Cannot extract project file content.]" };
-    if (actualMimeType.startsWith('image/') || actualMimeType.startsWith('video/') || actualMimeType.startsWith('audio/')) return { success: false, content: `[Skipped Media File (${actualMimeType}): Cannot extract text content.]` };
+    // Known unsupported types (skipped for text content)
+    if (actualMimeType === 'application/pdf') {
+      return { success: false, content: "[Skipped PDF: Cannot extract text content.]" };
+    }
+    if (actualMimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') { // XLSX
+       return { success: false, content: "[Skipped XLSX: Cannot extract text content.]" };
+    }
+    if (actualMimeType === 'application/vnd.ms-excel') { // XLS
+        return { success: false, content: "[Skipped XLS: Cannot extract text content.]" };
+    }
+    if (actualMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // DOCX
+        return { success: false, content: "[Skipped DOCX: Cannot extract text content.]" };
+    }
+    if (actualMimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') { // PPTX
+        return { success: false, content: "[Skipped PPTX: Cannot extract text content.]" };
+    }
+    if (actualMimeType === 'application/vnd.ms-project' || actualMimeType === 'application/msproj') { // MPP
+       return { success: false, content: "[Skipped MPP: Cannot extract project file content.]" };
+     }
+     if (actualMimeType.startsWith('image/') || actualMimeType.startsWith('video/') || actualMimeType.startsWith('audio/')) {
+        return { success: false, content: `[Skipped Media File (${actualMimeType}): Cannot extract text content.]` };
+     }
+    // Catch-all for other unsupported types
     return { success: false, content: `[Skipped Unsupported File Type (${actualMimeType}): Cannot extract text content.]` };
   } catch (error) {
     console.error("Error decoding base64 data:", error);
@@ -75,11 +90,7 @@ function extractTextFromDataUri(dataUri: string, mimeType: string): { success: b
 export async function summarizeProjectData(input: SummarizeProjectDataInput): Promise<SummarizeProjectDataOutput> {
   const { files, industry } = input;
 
-  // The UI now handles text extraction and combining.
-  // This function primarily orchestrates calling the internal flow.
-  // We still need to perform basic validation and construct the file summary list.
-
-  let combinedTextContent = ""; // We'll reconstruct this from extraction for the internal flow
+  let combinedTextContent = "";
   let fileSummaries: string[] = [];
   let processingErrors: string[] = [];
   let textFileCount = 0;
@@ -97,8 +108,11 @@ export async function summarizeProjectData(input: SummarizeProjectDataInput): Pr
     }
   });
 
-  // If no text could be extracted from any file
-  if (files.length > 0 && textFileCount === 0) {
+  // If no files were uploaded or no text could be extracted
+  if (files.length === 0) {
+      return { summary: "No files were uploaded for summarization." };
+  }
+  if (textFileCount === 0) {
       return { summary: `Could not extract text content from any of the uploaded files for summarization.\nDetails:\n- ${processingErrors.join('\n- ')}\n\nPlease ensure files are in supported text formats (TXT, CSV, JSON).` };
   }
 
@@ -131,7 +145,7 @@ export async function summarizeProjectData(input: SummarizeProjectDataInput): Pr
 
 // Internal flow schema (accepts combined text)
 const SummarizeProjectTextInputSchema = z.object({
-  combinedFileTextContent: z.string().describe('The combined extracted text content of the project files, including skip messages for non-text files.'),
+  combinedFileTextContent: z.string().describe('The combined extracted text content of the project files (from TXT, CSV, JSON), including skip messages for non-text files.'),
   fileSummaryList: z.string().describe('A newline-separated list of the original file names and their MIME types.'),
   industry: z.string().describe('The industry of the project.'),
 });
@@ -142,14 +156,14 @@ const summarizeProjectTextPrompt = ai.definePrompt({
   input: { schema: SummarizeProjectTextInputSchema },
   output: { schema: SummarizeProjectDataOutputSchema },
   prompt: `You are an AI assistant specialized in project management for the {{{industry}}} industry.
-Analyze the combined project data content from the files listed below and generate a concise, comprehensive summary.
-Focus on key aspects relevant to project management in the {{{industry}}} sector, such as objectives, timelines, key stakeholders, budget information, risks, and major deliverables mentioned in the documents.
+Analyze the combined project data content extracted from the text-based files (TXT, CSV, JSON) listed below.
+Generate a concise, comprehensive summary focusing on key aspects relevant to project management in the {{{industry}}} sector (e.g., objectives, timelines, stakeholders, budget, risks, deliverables mentioned).
 Acknowledge any files that were skipped or could not be read based on the [Skipped...] messages within the content.
 
 Files Processed (including skipped):
 {{{fileSummaryList}}}
 
-Combined Project Data Content (including skip messages):
+Combined Project Data Content (Text extracted from TXT/CSV/JSON, includes skip messages for others):
 \`\`\`
 {{{combinedFileTextContent}}}
 \`\`\`
