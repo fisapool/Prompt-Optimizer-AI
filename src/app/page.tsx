@@ -62,6 +62,7 @@ export default function Home() {
     try {
       const aiResponse = await analyzeProjectData({
         fileDataUri: uploadedFile.dataUri,
+        fileName: uploadedFile.name, // Pass the file name
         question: messageContent,
         industry: selectedIndustry.value,
       });
@@ -119,7 +120,7 @@ export default function Home() {
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle>Step 2: Upload Project File</CardTitle>
-            <CardDescription>Upload your project management file (e.g., .mpp, .xlsx, .csv, .pdf).</CardDescription>
+            <CardDescription>Upload your project management file (e.g., .mpp, .xlsx, .csv, .json, .txt, .pdf).</CardDescription>
           </CardHeader>
           <CardContent>
             <FileUpload onFileUpload={handleFileUpload} disabled={isLoading} />

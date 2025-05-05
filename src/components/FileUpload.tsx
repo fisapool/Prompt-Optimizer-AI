@@ -45,24 +45,28 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
   const handleDragEnter = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (disabled) return;
     setIsDragging(true);
   };
 
   const handleDragLeave = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (disabled) return;
     setIsDragging(false);
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (disabled) return;
     // You can add visual cues here if needed
   };
 
   const handleDrop = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (disabled) return;
     setIsDragging(false);
 
     const file = event.dataTransfer.files?.[0] || null;
@@ -82,10 +86,10 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
           isDragging ? "border-primary bg-primary/10" : "border-border",
           disabled ? "cursor-not-allowed opacity-50" : ""
         )}
-        onDragEnter={disabled ? undefined : handleDragEnter}
-        onDragLeave={disabled ? undefined : handleDragLeave}
-        onDragOver={disabled ? undefined : handleDragOver}
-        onDrop={disabled ? undefined : handleDrop}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
         <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
           <UploadCloud className="w-10 h-10 mb-3 text-muted-foreground" />
@@ -111,7 +115,7 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
                 <span className="font-semibold">Click to upload</span> or drag and drop
               </p>
               <p className="text-xs text-muted-foreground">
-                (e.g., .mpp, .xlsx, .csv, .pdf)
+                (e.g., .csv, .json, .txt, .pdf, .xlsx, .mpp)
               </p>
              </>
           )}
@@ -122,7 +126,7 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
           className="hidden"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".mpp,.xlsx,.xls,.csv,.pdf,.json" // Add common project file types
+          accept=".mpp,.xlsx,.xls,.csv,.pdf,.json,.txt" // Updated accepted file types
           disabled={disabled}
         />
       </Label>
