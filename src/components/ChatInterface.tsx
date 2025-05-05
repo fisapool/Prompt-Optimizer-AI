@@ -3,7 +3,7 @@
 
 import type * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, FileText, Sparkles } from 'lucide-react'; // Added Sparkles
+import { Send, User, Bot, Loader2, Sparkles } from 'lucide-react'; // Added Sparkles
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -78,8 +78,9 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
    const handlePromptClick = (prompt: string) => {
      if (!isLoading && !disabled) {
        setInput(prompt); // Set input field
-       onSendMessage(prompt); // Send message immediately
-       setInput(''); // Clear input after sending
+       // Optionally send immediately:
+       // onSendMessage(prompt);
+       // setInput('');
      }
    };
 
