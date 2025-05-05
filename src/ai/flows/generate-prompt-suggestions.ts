@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview Generates dynamic prompt suggestions based on project summary and content.
+ * @fileOverview Generates dynamic prompt customization suggestions based on project summary and content.
  *
- * - generatePromptSuggestions - A function that suggests questions to ask about the project.
+ * - generatePromptSuggestions - A function that suggests ways to customize the final prompt.
  * - GeneratePromptSuggestionsInput - The input type for the generatePromptSuggestions function.
  * - GeneratePromptSuggestionsOutput - The return type for the generatePromptSuggestions function.
  */
@@ -10,7 +10,7 @@
 import {ai} from '@/ai/ai-instance';
 import {z} from 'genkit';
 
-// Input schema for the prompt generation flow
+// Input schema for the prompt suggestion flow
 const GeneratePromptSuggestionsInputSchema = z.object({
   combinedFileTextContent: z.string().describe('The combined extracted text content of the project files.'),
   projectSummary: z.string().describe('The AI-generated summary of the project data.'),
@@ -18,9 +18,9 @@ const GeneratePromptSuggestionsInputSchema = z.object({
 });
 export type GeneratePromptSuggestionsInput = z.infer<typeof GeneratePromptSuggestionsInputSchema>;
 
-// Output schema for the prompt generation flow
+// Output schema for the prompt suggestion flow
 const GeneratePromptSuggestionsOutputSchema = z.object({
-  suggestions: z.array(z.string()).describe('A list of suggested questions to ask about the project data.'),
+  suggestions: z.array(z.string()).describe('A list of suggested customizations or details to add to the final prompt.'),
 });
 export type GeneratePromptSuggestionsOutput = z.infer<typeof GeneratePromptSuggestionsOutputSchema>;
 
@@ -33,14 +33,14 @@ export async function generatePromptSuggestions(
 }
 
 
-// Prompt for generating suggestions
+// Prompt for generating customization suggestions
 const generateSuggestionsPrompt = ai.definePrompt({
   name: 'generateSuggestionsPrompt',
   input: { schema: GeneratePromptSuggestionsInputSchema },
   output: { schema: GeneratePromptSuggestionsOutputSchema },
-  prompt: `You are an AI assistant helping a user understand their project data in the {{{industry}}} industry.
-Based on the provided project summary and the combined text content from the uploaded files, generate a list of 3-5 insightful and relevant questions the user could ask to further explore the data.
-Focus on questions that go beyond simple retrieval and encourage deeper analysis, risk identification, or clarification of key aspects mentioned in the summary or content.
+  prompt: `You are an AI assistant helping a user create an optimized prompt for another AI model, focusing on the {{{industry}}} industry.
+Based on the provided project summary and the combined text content from the uploaded files, generate a list of 3-5 insightful and relevant suggestions for how the user could *customize* the final prompt.
+Focus on suggesting specific details, constraints, desired output formats, target audiences, or key performance indicators (KPIs) that could be added to make the final prompt more effective for the user's needs.
 
 Project Summary:
 \`\`\`
@@ -52,7 +52,7 @@ Combined Project Data Content:
 {{{combinedFileTextContent}}}
 \`\`\`
 
-Generate a list of suggested questions.`,
+Generate a list of suggested prompt customizations (e.g., "Specify the target audience as non-technical managers", "Require the output in markdown format", "Emphasize cost-saving measures").`,
 });
 
 // Internal flow definition for generating suggestions

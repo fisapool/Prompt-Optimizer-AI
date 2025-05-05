@@ -2,10 +2,10 @@
 'use client';
 
 import type * as React from 'react';
-import { useState, useCallback, useMemo } from 'react'; // Added useMemo
-import { analyzeProjectData, type AnalyzeProjectDataInput } from '@/ai/flows/analyze-project-data';
+import { useState, useCallback, useMemo, useRef } from 'react'; // Added useRef
 import { summarizeProjectData, type SummarizeProjectDataInput } from '@/ai/flows/summarize-project-data';
-import { generatePromptSuggestions, type GeneratePromptSuggestionsInput } from '@/ai/flows/generate-prompt-suggestions'; // Import the new flow
+import { generatePromptSuggestions, type GeneratePromptSuggestionsInput } from '@/ai/flows/generate-prompt-suggestions';
+import { generateOptimizedPrompt, type GenerateOptimizedPromptInput } from '@/ai/flows/generate-optimized-prompt'; // Import the new flow
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { IndustrySelector, type Industry } from '@/components/IndustrySelector';
 import { FileUpload } from '@/components/FileUpload';
@@ -13,7 +13,10 @@ import { ChatInterface, type Message } from '@/components/ChatInterface';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Terminal, Bot, Loader2, Wand2 } from "lucide-react"; // Added Wand2 for suggestions loading
+import { Terminal, Bot, Loader2, Wand2, Copy, Check } from "lucide-react"; // Added Copy, Check
+import { Textarea } from "@/components/ui/textarea"; // Added Textarea for Step 5
+import { useToast } from "@/hooks/use-toast"; // Import useToast hook
+
 
 // Define structure for uploaded file state
 interface UploadedFile {
@@ -27,13 +30,19 @@ export default function Home() {
   const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [projectSummary, setProjectSummary] = useState<string | null>(null);
-  const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]); // State for dynamic suggestions
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]); // State for customization suggestions
+  const [customizationMessages, setCustomizationMessages] = useState<Message[]>([]); // Messages for customization chat display
+  const [promptCustomizations, setPromptCustomizations] = useState<string[]>([]); // Actual customization text strings
+  const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null); // State for the final generated prompt
+  const [isLoadingChatInput, setIsLoadingChatInput] = useState(false); // Separate loading for chat input interaction (not actual AI call here)
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false); // State for suggestions loading
+  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [isGeneratingFinalPrompt, setIsGeneratingFinalPrompt] = useState(false); // State for final prompt generation loading
   const [error, setError] = useState<string | null>(null);
   const [isReadingFiles, setIsReadingFiles] = useState(false);
+  const [isCopied, setIsCopied] = useState(false); // State for copy button feedback
+  const { toast } = useToast(); // Initialize toast
+
 
   // Helper function to extract text content from a Data URI (copied/adapted from flows)
   const extractTextFromDataUri = useCallback((dataUri: string, mimeType: string): { success: boolean; content: string } => {
@@ -81,14 +90,16 @@ export default function Home() {
     setError(null);
     setProjectSummary(null);
     setPromptSuggestions([]); // Clear suggestions
-    setMessages([]);
+    setCustomizationMessages([]); // Clear customization chat
+    setPromptCustomizations([]); // Clear customization data
+    setOptimizedPrompt(null); // Clear final prompt
     if (!fileList || fileList.length === 0) {
       setUploadedFiles([]);
       return;
     }
 
     setIsReadingFiles(true);
-    setMessages([{ id: 'system-reading', role: 'system', content: 'reading' }]);
+    setCustomizationMessages([{ id: 'system-reading', role: 'system', content: 'reading' }]);
 
     const filesArray = Array.from(fileList);
     const fileReadPromises: Promise<UploadedFile>[] = [];
@@ -115,13 +126,13 @@ export default function Home() {
     Promise.all(fileReadPromises)
       .then((newFilesData) => {
         setUploadedFiles(newFilesData);
-        setMessages([]);
+        setCustomizationMessages([]);
       })
       .catch((err) => {
         console.error("Error reading one or more files:", err);
         setError(`Error reading files: ${err.message}`);
         setUploadedFiles([]);
-        setMessages([]);
+        setCustomizationMessages([]);
       })
       .finally(() => {
         setIsReadingFiles(false);
@@ -135,7 +146,6 @@ export default function Home() {
     let processingErrors: string[] = [];
     uploadedFiles.forEach(file => {
         content += `\n\n--- File: ${file.name} (${file.mimeType}) ---\n${file.textContent}`;
-        // Consider adding extracted error/skip messages to a list if needed later
         if (file.textContent?.startsWith("[")) { // Basic check for our skip messages
             processingErrors.push(`${file.name}: ${file.textContent}`);
         }
@@ -159,6 +169,9 @@ export default function Home() {
     setError(null);
     setProjectSummary(null);
     setPromptSuggestions([]); // Clear old suggestions
+    setCustomizationMessages([]); // Reset customization chat
+    setPromptCustomizations([]); // Reset customizations
+    setOptimizedPrompt(null); // Clear final prompt
 
     try {
       // Summarize
@@ -167,12 +180,12 @@ export default function Home() {
           fileDataUri: f.dataUri,
           fileName: f.name,
           mimeType: f.mimeType,
-        })), // Summarize flow still needs the original data URI structure
+        })),
         industry: selectedIndustry.value,
       };
       const summaryResponse = await summarizeProjectData(summaryInput);
       setProjectSummary(summaryResponse.summary);
-      setMessages([]); // Reset chat after generating summary
+
 
       // Generate suggestions only if summary was successful
       if (summaryResponse.summary && !summaryResponse.summary.startsWith("Could not process")) {
@@ -187,17 +200,15 @@ export default function Home() {
            setPromptSuggestions(suggestionsResponse.suggestions);
         } catch (suggestionErr) {
              console.error("AI suggestion generation failed:", suggestionErr);
-             // Don't block the UI for suggestion errors, maybe show a small note?
-             setError("Generated summary, but failed to generate prompt suggestions.");
-             setPromptSuggestions([]); // Ensure suggestions are empty on error
+             setError("Generated summary, but failed to generate prompt customization suggestions.");
+             setPromptSuggestions([]);
         } finally {
             setIsGeneratingSuggestions(false);
         }
       } else {
-          // Handle case where summary failed but didn't throw (e.g., all files skipped)
-          setPromptSuggestions([]); // No summary, no suggestions
-          if (!error) { // Avoid overwriting a potential summarization error
-              setError(summaryResponse.summary); // Show the summary "error" message
+          setPromptSuggestions([]);
+          if (!error) {
+              setError(summaryResponse.summary);
           }
       }
 
@@ -209,78 +220,98 @@ export default function Home() {
       setPromptSuggestions([]);
     } finally {
       setIsSummarizing(false);
-      // isGeneratingSuggestions is handled within its own block
     }
   };
 
 
-  const handleSendMessage = async (messageContent: string) => {
-    if (uploadedFiles.length === 0 || !selectedIndustry || !projectSummary) {
-      setError("Please generate a summary before starting the chat.");
-      return;
-    }
-    if (isLoadingChat || isReadingFiles || isSummarizing || isGeneratingSuggestions) return;
+  // Handles adding user input for customization (does not call AI)
+  const handleAddCustomization = async (messageContent: string) => {
+    if (isLoadingChatInput || isReadingFiles || isSummarizing || isGeneratingSuggestions || isGeneratingFinalPrompt) return;
 
     const userMessage: Message = { id: Date.now().toString(), role: 'user', content: messageContent };
-    setMessages((prev) => [...prev.filter(m => m.role !== 'system'), userMessage]);
-    setIsLoadingChat(true);
+    setCustomizationMessages((prev) => [...prev.filter(m => m.role !== 'system'), userMessage]);
+    setPromptCustomizations((prev) => [...prev, messageContent]); // Add the raw text to customizations list
+    // No AI call here, just updating state
+  };
+
+  // Function to clear the customization chat messages and stored customizations
+  const handleClearCustomizations = () => {
+    setCustomizationMessages([]);
+    setPromptCustomizations([]); // Clear stored customization text
+    setError(null); // Also clear any existing related errors
+  };
+
+  // Handle generating the final optimized prompt
+  const handleGenerateFinalPrompt = async () => {
+     if (uploadedFiles.length === 0 || !selectedIndustry || !projectSummary) {
+      setError("Please upload files and generate the summary first.");
+      return;
+    }
+    if (isProcessing || isGeneratingFinalPrompt) return;
+
+    setIsGeneratingFinalPrompt(true);
     setError(null);
+    setOptimizedPrompt(null); // Clear previous result
 
     try {
-       // Analyze project data flow still expects file data URIs for now
-       // In a future refactor, we could potentially pass combinedTextContent
-       // if the flow was adapted, but let's stick to the current interface.
-       const aiInput: AnalyzeProjectDataInput = {
-        files: uploadedFiles.map(f => ({
-          fileDataUri: f.dataUri,
-          fileName: f.name,
-          mimeType: f.mimeType,
-        })),
-        question: messageContent,
-        industry: selectedIndustry.value,
-      };
+        const input: GenerateOptimizedPromptInput = {
+            industry: selectedIndustry.value,
+            projectSummary: projectSummary,
+            combinedFileTextContent: combinedTextContent,
+            customizations: promptCustomizations, // Pass collected customizations
+        };
 
-      const aiResponse = await analyzeProjectData(aiInput);
+        const response = await generateOptimizedPrompt(input);
+        setOptimizedPrompt(response.optimizedPrompt);
+        setIsCopied(false); // Reset copied state
 
-      const assistantMessage: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: aiResponse.answer };
-      setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
-      console.error("AI analysis failed:", err);
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during analysis.";
-      setError(`AI analysis failed: ${errorMessage}`);
-      const assistantErrorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `Sorry, I encountered an error trying to analyze the data: ${errorMessage}`,
-      };
-      setMessages((prev) => [...prev, assistantErrorMessage]);
+      console.error("Final prompt generation failed:", err);
+      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during prompt generation.";
+      setError(`Failed to generate optimized prompt: ${errorMessage}`);
+      setOptimizedPrompt(null);
     } finally {
-      setIsLoadingChat(false);
+        setIsGeneratingFinalPrompt(false);
     }
   };
 
-  // Function to clear the chat messages
-  const handleClearChat = () => {
-    setMessages([]);
-    setError(null); // Also clear any existing chat-related errors
+  // Handle copying the generated prompt
+  const handleCopyPrompt = () => {
+      if (optimizedPrompt) {
+          navigator.clipboard.writeText(optimizedPrompt).then(() => {
+              setIsCopied(true);
+              toast({
+                  title: "Copied!",
+                  description: "Optimized prompt copied to clipboard.",
+              });
+              setTimeout(() => setIsCopied(false), 2000); // Reset icon after 2s
+          }).catch(err => {
+              console.error('Failed to copy text: ', err);
+              toast({
+                  variant: "destructive",
+                  title: "Copy Failed",
+                  description: "Could not copy the prompt to clipboard.",
+              });
+          });
+      }
   };
 
 
   // Determine combined loading state for disabling inputs
-  const isProcessing = isReadingFiles || isSummarizing || isLoadingChat || isGeneratingSuggestions;
+  const isProcessing = isReadingFiles || isSummarizing || isLoadingChatInput || isGeneratingSuggestions || isGeneratingFinalPrompt;
   const summaryActive = !!selectedIndustry && uploadedFiles.length > 0;
-  const chatActive = summaryActive && !!projectSummary;
-
+  const customizationActive = summaryActive && !!projectSummary; // Renamed from chatActive
+  const generatePromptActive = customizationActive; // Can generate prompt once summary is done
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-12 lg:p-24 bg-background">
       <div className="w-full max-w-4xl space-y-8">
         <header className="text-center">
           <h1 className="text-3xl font-bold tracking-tight text-primary sm:text-4xl">
-            ProjectWise AI
+            Prompt Optimizer AI
           </h1>
           <p className="mt-2 text-lg text-muted-foreground">
-            Upload project files, generate a summary & suggestions, and discuss insights with AI.
+            Generate optimized prompts tailored to your project data.
           </p>
         </header>
 
@@ -296,20 +327,21 @@ export default function Home() {
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle>Step 1: Select Your Industry</CardTitle>
-            <CardDescription>Choose the industry that best represents your project(s).</CardDescription>
+            <CardDescription>This helps tailor the initial analysis and prompt generation.</CardDescription>
           </CardHeader>
           <CardContent>
             <IndustrySelector
               selectedIndustry={selectedIndustry}
               onSelectIndustry={(industry) => {
                 setSelectedIndustry(industry);
-                setProjectSummary(null); // Reset summary when industry changes
-                setPromptSuggestions([]); // Reset suggestions
-                setMessages([]); // Reset chat
-                setUploadedFiles([]); // Reset files if industry changes
-                // Consider if you want to keep files or clear them here
+                setProjectSummary(null);
+                setPromptSuggestions([]);
+                setCustomizationMessages([]);
+                setPromptCustomizations([]);
+                setOptimizedPrompt(null);
+                setUploadedFiles([]);
               }}
-              disabled={isProcessing && !!selectedIndustry} // Allow changing even if processing, but maybe not?
+              disabled={isProcessing && !!selectedIndustry}
             />
           </CardContent>
         </Card>
@@ -319,7 +351,7 @@ export default function Home() {
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle>Step 2: Upload Project Files</CardTitle>
-            <CardDescription>Upload one or more project management files (e.g., .txt, .csv, .json). PDF, XLSX, MPP files will be skipped during analysis.</CardDescription>
+            <CardDescription>Upload context files (e.g., .txt, .csv, .json). PDF, XLSX, MPP will be skipped.</CardDescription>
           </CardHeader>
           <CardContent>
             <FileUpload
@@ -339,8 +371,8 @@ export default function Home() {
         {/* Step 3: Generate Summary & Suggestions */}
         <Card className={`w-full shadow-lg ${!summaryActive || isProcessing ? 'opacity-60' : ''}`}>
            <CardHeader>
-            <CardTitle>Step 3: Generate Summary & Suggestions</CardTitle>
-            <CardDescription>Click the button below to generate an AI-powered summary and prompt suggestions based on the uploaded files and selected industry.</CardDescription>
+            <CardTitle>Step 3: Generate Summary & Customization Suggestions</CardTitle>
+            <CardDescription>Analyzes files to create a project summary and suggests areas for prompt customization.</CardDescription>
            </CardHeader>
            <CardContent>
              {(isSummarizing || isGeneratingSuggestions) ? (
@@ -357,7 +389,7 @@ export default function Home() {
                  </div>
                ) : (
                  <p className="text-sm text-muted-foreground italic text-center">
-                   {uploadedFiles.length > 0 && selectedIndustry ? "Ready to generate summary and suggestions." : "Please select industry and upload files first."}
+                   {uploadedFiles.length > 0 && selectedIndustry ? "Ready to generate summary and suggestions." : "Select industry and upload files first."}
                  </p>
              )}
            </CardContent>
@@ -380,27 +412,86 @@ export default function Home() {
          </Card>
 
 
-        {/* Step 4: Chat Interface */}
-        <Card className={`w-full shadow-lg ${!chatActive || isProcessing ? 'opacity-60 pointer-events-none' : ''}`}>
+        {/* Step 4: Customize Prompt */}
+        <Card className={`w-full shadow-lg ${!customizationActive || isProcessing ? 'opacity-60 pointer-events-none' : ''}`}>
           <CardHeader>
-            <CardTitle>Step 4: Chat with AI</CardTitle>
+            <CardTitle>Step 4: Customize Your Prompt</CardTitle>
             <CardDescription>
-               {chatActive ? "Use the suggestions below or ask your own questions about the project data." : "Generate a summary first to enable the chat."}
+               {customizationActive ? "Use the suggestions or add specific details/requirements for the final prompt." : "Generate summary & suggestions first to enable customization."}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* ChatInterface now handles customization input */}
             <ChatInterface
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              onClearChat={handleClearChat} // Pass clear function
-              isLoading={isLoadingChat || isReadingFiles}
-              disabled={!chatActive || isProcessing}
-              promptSuggestions={promptSuggestions} // Pass dynamic suggestions
-              isLoadingSuggestions={isGeneratingSuggestions} // Pass loading state for suggestions
+              messages={customizationMessages}
+              onSendMessage={handleAddCustomization} // Changed to add customization
+              onClearChat={handleClearCustomizations} // Pass clear function
+              isLoading={isLoadingChatInput} // Use specific loading state if needed, but it's synchronous now
+              disabled={!customizationActive || isProcessing}
+              promptSuggestions={promptSuggestions} // Pass dynamic suggestions for customization
+              isLoadingSuggestions={isGeneratingSuggestions}
               industry={selectedIndustry?.value}
+              chatPurpose="customization" // Indicate the purpose of this chat
             />
           </CardContent>
         </Card>
+
+        {/* Step 5: Generate & View Optimized Prompt */}
+         <Card className={`w-full shadow-lg ${!generatePromptActive || isProcessing ? 'opacity-60' : ''}`}>
+          <CardHeader>
+            <CardTitle>Step 5: Generate & Copy Optimized Prompt</CardTitle>
+            <CardDescription>
+              {generatePromptActive ? "Click below to generate the final prompt based on the summary and your customizations." : "Complete previous steps first."}
+            </CardDescription>
+          </CardHeader>
+           <CardContent className="space-y-4">
+             {isGeneratingFinalPrompt ? (
+               <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                 <Loader2 className="h-5 w-5 animate-spin" />
+                 <span>Generating optimized prompt...</span>
+               </div>
+             ) : optimizedPrompt ? (
+                <div className="relative">
+                   <Textarea
+                     readOnly
+                     value={optimizedPrompt}
+                     className="w-full h-60 resize-none pr-12 bg-muted/30" // Add padding for the button
+                     aria-label="Optimized Prompt"
+                   />
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     className="absolute top-2 right-2 text-muted-foreground hover:text-foreground"
+                     onClick={handleCopyPrompt}
+                     aria-label={isCopied ? "Copied" : "Copy prompt"}
+                   >
+                     {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                   </Button>
+                 </div>
+             ) : (
+               <p className="text-sm text-muted-foreground italic text-center">
+                  {generatePromptActive ? "Ready to generate the optimized prompt." : "Complete previous steps first."}
+               </p>
+             )}
+           </CardContent>
+           <CardFooter className="justify-center border-t pt-4">
+            <Button
+                onClick={handleGenerateFinalPrompt}
+                disabled={!generatePromptActive || isProcessing}
+              >
+                {isGeneratingFinalPrompt ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
+                  </>
+                ) : optimizedPrompt ? (
+                  "Regenerate Optimized Prompt"
+                ) : (
+                  "Generate Optimized Prompt"
+                )}
+             </Button>
+           </CardFooter>
+         </Card>
+
       </div>
     </main>
   );

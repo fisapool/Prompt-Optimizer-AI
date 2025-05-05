@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ProjectWise AI', // Updated title
-  description: 'AI-Powered Project Management Discussion Platform', // Updated description
+  title: 'Prompt Optimizer AI', // Updated title
+  description: 'Generate optimized prompts for AI models based on your project data.', // Updated description
 };
 
 export default function RootLayout({

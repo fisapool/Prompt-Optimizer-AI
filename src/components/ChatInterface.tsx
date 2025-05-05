@@ -23,37 +23,37 @@ export interface Message {
   content: string;
 }
 
-// Static fallback prompts
+// Static fallback prompts - now focused on customization aspects
 const staticExamplePrompts: Record<string, string[]> = {
   general: [
-    "Summarize the key milestones.",
-    "Identify potential risks.",
-    "What are the main dependencies?",
-    "List team members mentioned.",
+    "Focus on the main objective.",
+    "Emphasize the budget constraints.",
+    "Target audience should be technical.",
+    "Specify the desired output format as JSON.",
   ],
   construction: [
-    "List safety requirements.",
-    "Identify key equipment/materials.",
-    "What are the major phases?",
-    "Extract the schedule details.",
+    "Highlight safety regulations.",
+    "Specify LEED certification requirements.",
+    "Mention the use of specific materials.",
+    "Require a Gantt chart output.",
   ],
   software: [
-    "Summarize main features.",
-    "Identify technical debt.",
-    "List key APIs/integrations.",
-    "Outline testing requirements.",
+    "Specify the programming language (e.g., Python).",
+    "Require adherence to Agile methodology.",
+    "Mention integration with specific APIs.",
+    "Request code comments in the output.",
   ],
   healthcare: [
-    "Identify HIPAA considerations.",
-    "Summarize clinical trial phases.",
-    "List regulatory approvals.",
-    "Extract research methodology.",
+    "Emphasize patient confidentiality (HIPAA).",
+    "Specify compliance with FDA regulations.",
+    "Require anonymized data examples.",
+    "Mention target demographic for a trial.",
   ],
   marketing: [
-    "What is the target audience?",
-    "Identify KPIs.",
-    "List marketing channels.",
-    "Summarize campaign budget.",
+    "Specify the campaign tone (e.g., formal, casual).",
+    "Define the primary call-to-action.",
+    "Require A/B testing suggestions.",
+    "Mention target social media platforms.",
   ],
 };
 
@@ -62,11 +62,12 @@ interface ChatInterfaceProps {
   messages: Message[];
   onSendMessage: (message: string) => Promise<void>;
   onClearChat: () => void; // Add clear chat handler prop
-  isLoading: boolean; // Loading state for sending/receiving chat messages
+  isLoading: boolean; // Loading state for sending/receiving chat messages (now just for UI feedback)
   disabled?: boolean; // If the entire chat interface should be disabled
   promptSuggestions: string[]; // Dynamic suggestions from AI
   isLoadingSuggestions: boolean; // Loading state for fetching dynamic suggestions
   industry?: string | null; // Selected industry for fallback prompts
+  chatPurpose?: 'chat' | 'customization'; // New prop to differentiate behavior
 }
 
 export function ChatInterface({
@@ -77,7 +78,8 @@ export function ChatInterface({
   disabled = false,
   promptSuggestions,
   isLoadingSuggestions,
-  industry
+  industry,
+  chatPurpose = 'chat' // Default to 'chat'
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -87,8 +89,9 @@ export function ChatInterface({
   };
 
   const handleSendClick = () => {
+    // In customization mode, sending just adds the input to the state via onSendMessage
     if (input.trim() && !isLoading && !disabled) {
-      onSendMessage(input.trim());
+      onSendMessage(input.trim()); // This function now just updates local state
       setInput('');
     }
   };
@@ -96,9 +99,7 @@ export function ChatInterface({
    const handlePromptClick = (prompt: string) => {
      if (!isLoading && !disabled) {
        setInput(prompt);
-       // Optional: send immediately after clicking
-       // onSendMessage(prompt);
-       // setInput('');
+       // In customization mode, we don't auto-send, user confirms via button/enter
      }
    };
 
@@ -138,13 +139,29 @@ export function ChatInterface({
       ? staticExamplePrompts[industry]
       : staticExamplePrompts.general;
 
+  const inputPlaceholder = disabled
+    ? "Generate summary first..."
+    : chatPurpose === 'customization'
+      ? "Add prompt customization details..."
+      : "Ask about your project(s)...";
+
+  const sendButtonLabel = chatPurpose === 'customization' ? "Add Customization" : "Send Message";
+  const clearButtonTooltip = chatPurpose === 'customization' ? "Clear Customizations" : "Clear Chat";
+  const suggestionsTitle = chatPurpose === 'customization'
+    ? (promptSuggestions.length > 0 ? "Suggested customizations based on your data:" : "Need ideas? Try these customization examples:")
+    : (promptSuggestions.length > 0 ? "Suggested prompts based on your data:" : "Need inspiration? Try these examples:");
+  const suggestionsFooter = chatPurpose === 'customization' ? "Or type your own customization below." : "Or type your own question below.";
+  const disabledText = chatPurpose === 'customization'
+      ? "Please select industry, upload file(s), and generate the summary & suggestions to enable prompt customization."
+      : "Please select industry, upload file(s), and generate the summary & suggestions to enable chat.";
+
 
   return (
      <TooltipProvider delayDuration={100}> {/* Wrap with TooltipProvider */}
         <div className="flex flex-col h-[500px] border rounded-lg overflow-hidden">
            <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
              <div className="space-y-4">
-               {/* Show prompt suggestions area only if chat is enabled and messages are empty */}
+               {/* Show prompt suggestions area only if enabled and messages are empty */}
                {!disabled && displayMessages.length === 0 && (
                  <div className="text-center text-muted-foreground p-4 space-y-4">
                    {isLoadingSuggestions ? (
@@ -157,8 +174,8 @@ export function ChatInterface({
                        <div className="flex items-center justify-center gap-2">
                          <Wand2 className="h-5 w-5 text-accent" /> {/* Use Wand2 for generated prompts */}
                          <p className="font-medium text-foreground">
-                            {promptSuggestions.length > 0 ? "Suggested prompts based on your data:" : "Need inspiration? Try these examples:"}
-                          </p>
+                           {suggestionsTitle}
+                         </p>
                        </div>
                         <div className="flex flex-wrap justify-center gap-2">
                          {promptsToShow.slice(0, 4).map((prompt, index) => (
@@ -174,7 +191,7 @@ export function ChatInterface({
                            </Button>
                          ))}
                        </div>
-                       <p className="mt-4">Or type your own question below.</p>
+                       <p className="mt-4">{suggestionsFooter}</p>
                      </>
                    )}
                  </div>
@@ -182,11 +199,11 @@ export function ChatInterface({
                {/* Message displayed when prerequisites are not met (chat explicitly disabled) */}
                {disabled && displayMessages.length === 0 && !isLoading && (
                  <div className="text-center text-muted-foreground p-4">
-                    Please select industry, upload file(s), and generate the summary & suggestions to enable chat.
+                   {disabledText}
                  </div>
                )}
 
-              {/* Display actual chat messages */}
+              {/* Display actual messages (user inputs and potential future system responses) */}
               {displayMessages.map((message) => (
                 <div
                   key={message.id}
@@ -195,6 +212,7 @@ export function ChatInterface({
                     message.role === 'user' ? 'justify-end' : 'justify-start'
                   )}
                 >
+                  {/* In customization mode, we might not have assistant messages, but keep for flexibility */}
                   {message.role === 'assistant' && (
                     <Avatar className="h-8 w-8 flex-shrink-0">
                       <AvatarFallback><Bot size={18} /></AvatarFallback>
@@ -205,7 +223,7 @@ export function ChatInterface({
                       "max-w-[85%] rounded-lg px-4 py-2 break-words text-sm md:text-base shadow-sm",
                       message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
+                        : 'bg-muted text-muted-foreground' // System/Assistant messages for context if needed
                     )}
                   >
                     {/* Handle multiline content */}
@@ -220,8 +238,8 @@ export function ChatInterface({
                   )}
                 </div>
               ))}
-              {/* Loading indicator specifically for chat responses */}
-              {isLoading && (
+              {/* Loading indicator (less likely needed in customization mode unless suggestions are slow) */}
+              {isLoading && chatPurpose === 'chat' && ( // Only show for actual chat interaction loading
                 <div className="flex items-start gap-3 justify-start">
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarFallback><Bot size={18} /></AvatarFallback>
@@ -243,19 +261,19 @@ export function ChatInterface({
                   onClick={handleClearClick}
                   disabled={isLoading || disabled || displayMessages.length === 0} // Disable if no messages or processing
                   className="mr-2 text-muted-foreground hover:text-destructive"
-                  aria-label="Clear chat history"
+                  aria-label={clearButtonTooltip}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Clear Chat</p>
+                <p>{clearButtonTooltip}</p>
               </TooltipContent>
             </Tooltip>
 
             <Input
               type="text"
-              placeholder={disabled ? "Generate summary first..." : "Ask about your project(s)..."}
+              placeholder={inputPlaceholder}
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
@@ -266,8 +284,9 @@ export function ChatInterface({
             <Button
               onClick={handleSendClick}
               disabled={isLoading || !input.trim() || disabled || isLoadingSuggestions}
-              aria-label="Send message"
+              aria-label={sendButtonLabel}
             >
+              {/* Keep spinner for potential future async actions, but less critical now */}
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
