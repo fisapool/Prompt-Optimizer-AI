@@ -259,6 +259,13 @@ export default function Home() {
     }
   };
 
+  // Function to clear the chat messages
+  const handleClearChat = () => {
+    setMessages([]);
+    setError(null); // Also clear any existing chat-related errors
+  };
+
+
   // Determine combined loading state for disabling inputs
   const isProcessing = isReadingFiles || isSummarizing || isLoadingChat || isGeneratingSuggestions;
   const summaryActive = !!selectedIndustry && uploadedFiles.length > 0;
@@ -296,14 +303,17 @@ export default function Home() {
               selectedIndustry={selectedIndustry}
               onSelectIndustry={(industry) => {
                 setSelectedIndustry(industry);
-                setProjectSummary(null);
+                setProjectSummary(null); // Reset summary when industry changes
                 setPromptSuggestions([]); // Reset suggestions
-                setMessages([]);
+                setMessages([]); // Reset chat
+                setUploadedFiles([]); // Reset files if industry changes
+                // Consider if you want to keep files or clear them here
               }}
-              disabled={isProcessing && !!selectedIndustry}
+              disabled={isProcessing && !!selectedIndustry} // Allow changing even if processing, but maybe not?
             />
           </CardContent>
         </Card>
+
 
         {/* Step 2: File Upload */}
         <Card className="w-full shadow-lg">
@@ -382,6 +392,7 @@ export default function Home() {
             <ChatInterface
               messages={messages}
               onSendMessage={handleSendMessage}
+              onClearChat={handleClearChat} // Pass clear function
               isLoading={isLoadingChat || isReadingFiles}
               disabled={!chatActive || isProcessing}
               promptSuggestions={promptSuggestions} // Pass dynamic suggestions
