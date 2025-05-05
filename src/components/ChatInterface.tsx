@@ -3,7 +3,7 @@
 
 import type * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Sparkles } from 'lucide-react';
+import { Send, User, Bot, Loader2, Sparkles, Wand2 } from 'lucide-react'; // Added Wand2
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,42 +16,37 @@ export interface Message {
   content: string;
 }
 
-// Example prompts based on potential use cases and industry
-const examplePrompts: Record<string, string[]> = {
+// Static fallback prompts
+const staticExamplePrompts: Record<string, string[]> = {
   general: [
-    "Summarize the key milestones across all uploaded projects.",
-    "Identify potential risks mentioned in the documents.",
-    "What are the main dependencies between tasks or projects?",
-    "List all team members mentioned and their roles/responsibilities if available.",
-    "Are there any budget concerns or cost overruns mentioned?",
+    "Summarize the key milestones.",
+    "Identify potential risks.",
+    "What are the main dependencies?",
+    "List team members mentioned.",
   ],
   construction: [
-    "List all safety requirements or regulations mentioned.",
-    "Identify key equipment or materials needed based on the files.",
-    "What are the major phases described in the project data?",
-    "Extract the project schedule or timeline details.",
-    "Are there mentions of specific permits or inspections?",
+    "List safety requirements.",
+    "Identify key equipment/materials.",
+    "What are the major phases?",
+    "Extract the schedule details.",
   ],
   software: [
-    "Summarize the main features planned based on the documents.",
-    "Identify any technical debt or refactoring tasks mentioned.",
-    "List the key APIs or integrations discussed.",
-    "What are the testing requirements or strategies outlined?",
-    "Are there mentions of specific programming languages or frameworks?",
+    "Summarize main features.",
+    "Identify technical debt.",
+    "List key APIs/integrations.",
+    "Outline testing requirements.",
   ],
   healthcare: [
-    "Identify patient privacy (HIPAA) considerations mentioned.",
-    "Summarize the clinical trial phases or milestones if applicable.",
-    "List the regulatory approvals or compliance points discussed.",
-    "Extract any research methodology described.",
-    "Are there mentions of specific medical devices or procedures?",
+    "Identify HIPAA considerations.",
+    "Summarize clinical trial phases.",
+    "List regulatory approvals.",
+    "Extract research methodology.",
   ],
   marketing: [
-    "What is the target audience described for this campaign?",
-    "Identify the key performance indicators (KPIs) mentioned.",
-    "List the marketing channels or platforms discussed.",
-    "Summarize the campaign budget allocation if available.",
-    "What are the main campaign objectives outlined?",
+    "What is the target audience?",
+    "Identify KPIs.",
+    "List marketing channels.",
+    "Summarize campaign budget.",
   ],
 };
 
@@ -59,12 +54,22 @@ const examplePrompts: Record<string, string[]> = {
 interface ChatInterfaceProps {
   messages: Message[];
   onSendMessage: (message: string) => Promise<void>;
-  isLoading: boolean; // Represents chat-specific loading (sending/receiving messages)
-  disabled?: boolean; // Explicitly controls if the chat is disabled (e.g., summary not ready)
-  industry?: string | null; // Pass selected industry value for prompts
+  isLoading: boolean; // Loading state for sending/receiving chat messages
+  disabled?: boolean; // If the entire chat interface should be disabled
+  promptSuggestions: string[]; // Dynamic suggestions from AI
+  isLoadingSuggestions: boolean; // Loading state for fetching dynamic suggestions
+  industry?: string | null; // Selected industry for fallback prompts
 }
 
-export function ChatInterface({ messages, onSendMessage, isLoading, disabled = false, industry }: ChatInterfaceProps) {
+export function ChatInterface({
+  messages,
+  onSendMessage,
+  isLoading,
+  disabled = false,
+  promptSuggestions,
+  isLoadingSuggestions,
+  industry
+}: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -96,6 +101,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
   };
 
   useEffect(() => {
+    // Auto-scroll logic remains the same
     if (scrollAreaRef.current) {
       const viewport = scrollAreaRef.current.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
       if (viewport) {
@@ -104,45 +110,61 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
         });
       }
     }
-  }, [messages, isLoading]); // Depend on messages and isLoading to scroll down
+  }, [messages, isLoading, isLoadingSuggestions]); // Scroll when suggestions load too
 
-  const displayMessages = messages.filter(msg => msg.role !== 'system'); // Filter out system messages like 'reading'
-  // Determine relevant prompts: Use industry-specific if available, otherwise general
-   const relevantPrompts = (industry && examplePrompts[industry]) ? examplePrompts[industry] : examplePrompts.general;
+  const displayMessages = messages.filter(msg => msg.role !== 'system');
+
+  // Determine which prompts to display
+  const promptsToShow = promptSuggestions.length > 0
+    ? promptSuggestions
+    : (industry && staticExamplePrompts[industry])
+      ? staticExamplePrompts[industry]
+      : staticExamplePrompts.general;
 
 
   return (
     <div className="flex flex-col h-[500px] border rounded-lg overflow-hidden">
        <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
          <div className="space-y-4">
-           {/* Show prompt suggestions only if chat is enabled, empty, and not loading */}
-           {!disabled && displayMessages.length === 0 && !isLoading && (
+           {/* Show prompt suggestions area only if chat is enabled and messages are empty */}
+           {!disabled && displayMessages.length === 0 && (
              <div className="text-center text-muted-foreground p-4 space-y-4">
-               <div className="flex items-center justify-center gap-2">
-                 <Sparkles className="h-5 w-5 text-accent" />
-                 <p className="font-medium text-foreground">Need inspiration? Try these prompts:</p>
-               </div>
-                <div className="flex flex-wrap justify-center gap-2">
-                 {relevantPrompts.slice(0, 4).map((prompt, index) => (
-                    <Button
-                     key={index}
-                     variant="outline"
-                     size="sm"
-                     className="text-xs md:text-sm"
-                     onClick={() => handlePromptClick(prompt)}
-                     disabled={isLoading} // Disable prompts while sending/receiving
-                   >
-                     {prompt}
-                   </Button>
-                 ))}
-               </div>
-               <p className="mt-4">Or type your own question below.</p>
+               {isLoadingSuggestions ? (
+                 <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                   <Loader2 className="h-5 w-5 animate-spin" />
+                   <span>Generating suggestions...</span>
+                 </div>
+               ) : (
+                 <>
+                   <div className="flex items-center justify-center gap-2">
+                     <Wand2 className="h-5 w-5 text-accent" /> {/* Use Wand2 for generated prompts */}
+                     <p className="font-medium text-foreground">
+                        {promptSuggestions.length > 0 ? "Suggested prompts based on your data:" : "Need inspiration? Try these examples:"}
+                      </p>
+                   </div>
+                    <div className="flex flex-wrap justify-center gap-2">
+                     {promptsToShow.slice(0, 4).map((prompt, index) => (
+                        <Button
+                         key={index}
+                         variant="outline"
+                         size="sm"
+                         className="text-xs md:text-sm"
+                         onClick={() => handlePromptClick(prompt)}
+                         disabled={isLoading || isLoadingSuggestions} // Disable while loading anything
+                       >
+                         {prompt}
+                       </Button>
+                     ))}
+                   </div>
+                   <p className="mt-4">Or type your own question below.</p>
+                 </>
+               )}
              </div>
            )}
            {/* Message displayed when prerequisites are not met (chat explicitly disabled) */}
            {disabled && displayMessages.length === 0 && !isLoading && (
              <div className="text-center text-muted-foreground p-4">
-                Please select industry, upload file(s), and generate the summary to enable chat.
+                Please select industry, upload file(s), and generate the summary & suggestions to enable chat.
              </div>
            )}
 
@@ -188,7 +210,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
               </Avatar>
               <div className="bg-muted text-muted-foreground rounded-lg px-4 py-2 flex items-center space-x-2 shadow-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                 <span>Analyzing...</span> {/* Changed from conditional text */}
+                 <span>Analyzing...</span>
               </div>
             </div>
           )}
@@ -202,12 +224,12 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           className="flex-1 mr-2"
-          disabled={isLoading || disabled}
+          disabled={isLoading || disabled || isLoadingSuggestions} // Disable during suggestion loading too
           aria-label="Chat input"
         />
         <Button
           onClick={handleSendClick}
-          disabled={isLoading || !input.trim() || disabled}
+          disabled={isLoading || !input.trim() || disabled || isLoadingSuggestions}
           aria-label="Send message"
         >
           {isLoading ? (
@@ -220,4 +242,3 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
     </div>
   );
 }
-
