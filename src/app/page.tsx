@@ -4,12 +4,15 @@
 import type * as React from 'react';
 import { useState, useCallback } from 'react';
 import { analyzeProjectData, type AnalyzeProjectDataInput } from '@/ai/flows/analyze-project-data';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { summarizeProjectData, type SummarizeProjectDataInput } from '@/ai/flows/summarize-project-data'; // Import the new flow
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"; // Added CardFooter
 import { IndustrySelector, type Industry } from '@/components/IndustrySelector';
 import { FileUpload } from '@/components/FileUpload';
 import { ChatInterface, type Message } from '@/components/ChatInterface';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
+import { Button } from "@/components/ui/button"; // Import Button
+import { ScrollArea } from "@/components/ui/scroll-area"; // Import ScrollArea
+import { Terminal, Bot, Loader2 } from "lucide-react"; // Added Bot, Loader2
 
 // Define structure for uploaded file state
 interface UploadedFile {
@@ -21,22 +24,24 @@ interface UploadedFile {
 export default function Home() {
   const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [projectSummary, setProjectSummary] = useState<string | null>(null); // State for the summary
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingChat, setIsLoadingChat] = useState(false); // Renamed isLoading to isLoadingChat
+  const [isSummarizing, setIsSummarizing] = useState(false); // State for summary generation loading
   const [error, setError] = useState<string | null>(null);
   const [isReadingFiles, setIsReadingFiles] = useState(false); // State for file reading
 
   const handleFileUpload = useCallback((fileList: FileList | null) => {
     setError(null);
+    setProjectSummary(null); // Clear summary when files change
+    setMessages([]); // Clear chat when files change
     if (!fileList || fileList.length === 0) {
-      setUploadedFiles([]); // Clear files if null or empty list is passed
-      setMessages([]); // Clear chat if files are removed
+      setUploadedFiles([]);
       return;
     }
 
-    setIsReadingFiles(true); // Start reading indicator
-    // Add a system message to indicate file reading is in progress
-     setMessages([{ id: 'system-reading', role: 'system', content: 'reading' }]);
+    setIsReadingFiles(true);
+    setMessages([{ id: 'system-reading', role: 'system', content: 'reading' }]); // Show reading indicator in chat area temporarily
 
     const filesArray = Array.from(fileList);
     const fileReadPromises: Promise<UploadedFile>[] = [];
@@ -46,7 +51,7 @@ export default function Home() {
         const reader = new FileReader();
         reader.onload = (e) => {
           const dataUri = e.target?.result as string;
-          const mimeType = file.type || 'application/octet-stream'; // Get MIME type or default
+          const mimeType = file.type || 'application/octet-stream';
           resolve({ name: file.name, dataUri, mimeType });
         };
         reader.onerror = (e) => {
@@ -61,46 +66,74 @@ export default function Home() {
     Promise.all(fileReadPromises)
       .then((newFilesData) => {
         setUploadedFiles(newFilesData);
-        // Reset chat when new files are uploaded, removing system message
-        setMessages([
-          // Remove the initial message to allow prompt suggestions to show
-          // {
-          //   id: 'initial',
-          //   role: 'assistant',
-          //   content: `${newFilesData.length} file(s) uploaded successfully. How can I help you analyze these projects?`,
-          // }
-        ]);
+        // Remove the reading message, but don't add success message yet
+        setMessages([]);
       })
       .catch((err) => {
         console.error("Error reading one or more files:", err);
         setError(`Error reading files: ${err.message}`);
-        setUploadedFiles([]); // Clear files on error
-        setMessages([]); // Clear messages on error, including system message
+        setUploadedFiles([]);
+        setMessages([]);
       })
       .finally(() => {
-        setIsReadingFiles(false); // Stop reading indicator
+        setIsReadingFiles(false);
       });
-  }, []); // No dependencies needed here
+  }, []);
 
-  const handleSendMessage = async (messageContent: string) => {
+  const handleGenerateSummary = async () => {
     if (uploadedFiles.length === 0 || !selectedIndustry) {
       setError("Please select an industry and upload at least one project file first.");
       return;
     }
-    if (isLoading || isReadingFiles) return;
+    if (isSummarizing || isReadingFiles) return;
 
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: messageContent };
-    setMessages((prev) => [...prev.filter(m => m.role !== 'system'), userMessage]); // Remove system messages before adding user message
-    setIsLoading(true);
+    setIsSummarizing(true);
     setError(null);
+    setProjectSummary(null); // Clear previous summary
 
     try {
-       // Prepare input for the AI flow
-      const aiInput: AnalyzeProjectDataInput = {
+      const aiInput: SummarizeProjectDataInput = {
         files: uploadedFiles.map(f => ({
           fileDataUri: f.dataUri,
           fileName: f.name,
-          mimeType: f.mimeType, // Pass mimeType
+          mimeType: f.mimeType,
+        })),
+        industry: selectedIndustry.value,
+      };
+
+      const aiResponse = await summarizeProjectData(aiInput);
+      setProjectSummary(aiResponse.summary);
+      // Optionally reset chat to start fresh after summary generation
+      setMessages([]);
+    } catch (err) {
+      console.error("AI summarization failed:", err);
+      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during summarization.";
+      setError(`AI summarization failed: ${errorMessage}`);
+      setProjectSummary(null); // Ensure summary is cleared on error
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+
+  const handleSendMessage = async (messageContent: string) => {
+    if (uploadedFiles.length === 0 || !selectedIndustry || !projectSummary) { // Added check for summary
+      setError("Please generate a summary before starting the chat.");
+      return;
+    }
+    if (isLoadingChat || isReadingFiles || isSummarizing) return;
+
+    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: messageContent };
+    setMessages((prev) => [...prev.filter(m => m.role !== 'system'), userMessage]);
+    setIsLoadingChat(true); // Use setIsLoadingChat
+    setError(null);
+
+    try {
+       const aiInput: AnalyzeProjectDataInput = {
+        files: uploadedFiles.map(f => ({
+          fileDataUri: f.dataUri,
+          fileName: f.name,
+          mimeType: f.mimeType,
         })),
         question: messageContent,
         industry: selectedIndustry.value,
@@ -121,14 +154,17 @@ export default function Home() {
       };
       setMessages((prev) => [...prev, assistantErrorMessage]);
     } finally {
-      setIsLoading(false);
+      setIsLoadingChat(false); // Use setIsLoadingChat
     }
   };
 
-  // Use combined loading state for UI elements
-  const combinedLoading = isLoading || isReadingFiles;
-  // Determine if the chat should be disabled
-  const chatDisabled = !selectedIndustry || uploadedFiles.length === 0 || isReadingFiles;
+  // Determine combined loading state for disabling inputs
+  const isProcessing = isReadingFiles || isSummarizing || isLoadingChat;
+  // Determine if the summary section should be active
+  const summaryActive = !!selectedIndustry && uploadedFiles.length > 0;
+  // Determine if the chat section should be active
+  const chatActive = summaryActive && !!projectSummary;
+
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-12 lg:p-24 bg-background">
@@ -138,7 +174,7 @@ export default function Home() {
             ProjectWise AI
           </h1>
           <p className="mt-2 text-lg text-muted-foreground">
-            Upload your project files, select your industry, and let AI help you analyze and discuss your projects.
+            Upload project files, generate a summary, and discuss insights with AI.
           </p>
         </header>
 
@@ -150,6 +186,7 @@ export default function Home() {
           </Alert>
         )}
 
+        {/* Step 1: Industry Selection */}
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle>Step 1: Select Your Industry</CardTitle>
@@ -160,17 +197,15 @@ export default function Home() {
               selectedIndustry={selectedIndustry}
               onSelectIndustry={(industry) => {
                 setSelectedIndustry(industry);
-                // Optionally reset chat if industry changes after files are uploaded
-                // Reset chat completely to allow prompt suggestions to show
-                 if (uploadedFiles.length > 0) {
-                   setMessages([]);
-                 }
+                setProjectSummary(null); // Reset summary if industry changes
+                setMessages([]); // Reset chat
               }}
-              disabled={combinedLoading && !!selectedIndustry} // Disable selector while loading if an industry is already selected
+              disabled={isProcessing && !!selectedIndustry}
             />
           </CardContent>
         </Card>
 
+        {/* Step 2: File Upload */}
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle>Step 2: Upload Project Files</CardTitle>
@@ -179,24 +214,71 @@ export default function Home() {
           <CardContent>
             <FileUpload
               onFileUpload={handleFileUpload}
-              disabled={combinedLoading} // Disable upload while loading
-              accept=".txt,.csv,.json,.pdf,.xlsx,.xls,.mpp" // Accept all relevant types, filtering happens in AI flow
+              disabled={isProcessing}
+              accept=".txt,.csv,.json,.pdf,.xlsx,.xls,.mpp"
             />
           </CardContent>
         </Card>
 
-        <Card className={`w-full shadow-lg ${chatDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+        {/* Step 3: Generate Summary */}
+        <Card className={`w-full shadow-lg ${!summaryActive || isProcessing ? 'opacity-60' : ''}`}>
+           <CardHeader>
+            <CardTitle>Step 3: Generate Project Summary</CardTitle>
+            <CardDescription>Click the button below to generate an AI-powered summary of the uploaded files, tailored to your selected industry.</CardDescription>
+           </CardHeader>
+           <CardContent>
+             {isSummarizing ? (
+                <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Generating summary...</span>
+                </div>
+             ) : projectSummary ? (
+                 <div className="space-y-3">
+                   <h4 className="font-medium text-foreground">AI Generated Summary:</h4>
+                    <ScrollArea className="h-40 w-full rounded-md border p-3 bg-muted/30">
+                     <p className="text-sm text-foreground whitespace-pre-wrap">{projectSummary}</p>
+                   </ScrollArea>
+                 </div>
+               ) : (
+                 <p className="text-sm text-muted-foreground italic text-center">
+                   {uploadedFiles.length > 0 && selectedIndustry ? "Ready to generate summary." : "Please select industry and upload files first."}
+                 </p>
+             )}
+           </CardContent>
+          <CardFooter className="justify-center border-t pt-4">
+             <Button
+               onClick={handleGenerateSummary}
+               disabled={!summaryActive || isProcessing} // Disable if not active or processing
+             >
+               {isSummarizing ? (
+                 <>
+                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Summarizing...
+                 </>
+               ) : projectSummary ? (
+                  "Regenerate Summary" // Change button text after summary generation
+               ) : (
+                  "Generate Summary"
+               )}
+             </Button>
+           </CardFooter>
+         </Card>
+
+
+        {/* Step 4: Chat Interface */}
+        <Card className={`w-full shadow-lg ${!chatActive || isProcessing ? 'opacity-60 pointer-events-none' : ''}`}>
           <CardHeader>
-            <CardTitle>Step 3: Chat with AI</CardTitle>
-            <CardDescription>Ask questions about your project data. Use the suggestions or type your own.</CardDescription>
+            <CardTitle>Step 4: Chat with AI</CardTitle>
+            <CardDescription>
+               {chatActive ? "Ask questions about your project data based on the summary and uploaded files." : "Generate a summary first to enable the chat."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ChatInterface
               messages={messages}
               onSendMessage={handleSendMessage}
-              isLoading={combinedLoading} // Pass combined loading state
-              disabled={chatDisabled} // Pass explicit disabled state
-              industry={selectedIndustry?.value} // Pass selected industry value
+              isLoading={isLoadingChat || isReadingFiles} // Combine chat loading states
+              disabled={!chatActive || isProcessing} // Disable if chat not active or processing
+              industry={selectedIndustry?.value}
             />
           </CardContent>
         </Card>

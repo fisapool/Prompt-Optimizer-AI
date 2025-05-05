@@ -3,7 +3,7 @@
 
 import type * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Sparkles } from 'lucide-react'; // Added Sparkles
+import { Send, User, Bot, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -26,28 +26,32 @@ const examplePrompts: Record<string, string[]> = {
     "Are there any budget concerns or cost overruns mentioned?",
   ],
   construction: [
-    "List all safety requirements or regulations mentioned in the plans.",
-    "Identify key equipment or materials needed.",
-    "What are the major phases of the construction project?",
-    "Extract the project schedule or timeline.",
+    "List all safety requirements or regulations mentioned.",
+    "Identify key equipment or materials needed based on the files.",
+    "What are the major phases described in the project data?",
+    "Extract the project schedule or timeline details.",
+    "Are there mentions of specific permits or inspections?",
   ],
   software: [
-    "Summarize the main features planned for the next sprint.",
+    "Summarize the main features planned based on the documents.",
     "Identify any technical debt or refactoring tasks mentioned.",
     "List the key APIs or integrations discussed.",
-    "What are the testing requirements or strategies?",
+    "What are the testing requirements or strategies outlined?",
+    "Are there mentions of specific programming languages or frameworks?",
   ],
   healthcare: [
     "Identify patient privacy (HIPAA) considerations mentioned.",
-    "Summarize the clinical trial phases or milestones.",
-    "List the regulatory approvals required.",
-    "Extract the research methodology described.",
+    "Summarize the clinical trial phases or milestones if applicable.",
+    "List the regulatory approvals or compliance points discussed.",
+    "Extract any research methodology described.",
+    "Are there mentions of specific medical devices or procedures?",
   ],
   marketing: [
-    "What is the target audience for this campaign?",
-    "Identify the key performance indicators (KPIs).",
-    "List the marketing channels being used.",
-    "Summarize the campaign budget allocation.",
+    "What is the target audience described for this campaign?",
+    "Identify the key performance indicators (KPIs) mentioned.",
+    "List the marketing channels or platforms discussed.",
+    "Summarize the campaign budget allocation if available.",
+    "What are the main campaign objectives outlined?",
   ],
 };
 
@@ -55,9 +59,9 @@ const examplePrompts: Record<string, string[]> = {
 interface ChatInterfaceProps {
   messages: Message[];
   onSendMessage: (message: string) => Promise<void>;
-  isLoading: boolean;
-  disabled?: boolean;
-  industry?: string | null; // Pass selected industry
+  isLoading: boolean; // Represents chat-specific loading (sending/receiving messages)
+  disabled?: boolean; // Explicitly controls if the chat is disabled (e.g., summary not ready)
+  industry?: string | null; // Pass selected industry value for prompts
 }
 
 export function ChatInterface({ messages, onSendMessage, isLoading, disabled = false, industry }: ChatInterfaceProps) {
@@ -77,8 +81,8 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
 
    const handlePromptClick = (prompt: string) => {
      if (!isLoading && !disabled) {
-       setInput(prompt); // Set input field
-       // Optionally send immediately:
+       setInput(prompt);
+       // Optional: send immediately after clicking
        // onSendMessage(prompt);
        // setInput('');
      }
@@ -100,9 +104,9 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
         });
       }
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading]); // Depend on messages and isLoading to scroll down
 
-  const displayMessages = messages.filter(msg => msg.role !== 'system');
+  const displayMessages = messages.filter(msg => msg.role !== 'system'); // Filter out system messages like 'reading'
   // Determine relevant prompts: Use industry-specific if available, otherwise general
    const relevantPrompts = (industry && examplePrompts[industry]) ? examplePrompts[industry] : examplePrompts.general;
 
@@ -111,21 +115,22 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
     <div className="flex flex-col h-[500px] border rounded-lg overflow-hidden">
        <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
          <div className="space-y-4">
-           {/* Show prompt suggestions only if chat is empty and not disabled */}
-           {displayMessages.length === 0 && !disabled && !isLoading && (
+           {/* Show prompt suggestions only if chat is enabled, empty, and not loading */}
+           {!disabled && displayMessages.length === 0 && !isLoading && (
              <div className="text-center text-muted-foreground p-4 space-y-4">
                <div className="flex items-center justify-center gap-2">
                  <Sparkles className="h-5 w-5 text-accent" />
                  <p className="font-medium text-foreground">Need inspiration? Try these prompts:</p>
                </div>
                 <div className="flex flex-wrap justify-center gap-2">
-                 {relevantPrompts.slice(0, 4).map((prompt, index) => ( // Show top 4 prompts
+                 {relevantPrompts.slice(0, 4).map((prompt, index) => (
                     <Button
                      key={index}
                      variant="outline"
                      size="sm"
-                     className="text-xs md:text-sm" // Adjust text size for responsiveness
+                     className="text-xs md:text-sm"
                      onClick={() => handlePromptClick(prompt)}
+                     disabled={isLoading} // Disable prompts while sending/receiving
                    >
                      {prompt}
                    </Button>
@@ -134,10 +139,10 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
                <p className="mt-4">Or type your own question below.</p>
              </div>
            )}
-           {/* Message displayed when prerequisites are not met */}
+           {/* Message displayed when prerequisites are not met (chat explicitly disabled) */}
            {disabled && displayMessages.length === 0 && !isLoading && (
              <div className="text-center text-muted-foreground p-4">
-                Please select an industry and upload file(s) to start the chat.
+                Please select industry, upload file(s), and generate the summary to enable chat.
              </div>
            )}
 
@@ -157,12 +162,13 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
               )}
               <div
                 className={cn(
-                  "max-w-[85%] rounded-lg px-4 py-2 break-words text-sm md:text-base shadow-sm", // Added shadow
+                  "max-w-[85%] rounded-lg px-4 py-2 break-words text-sm md:text-base shadow-sm",
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground'
                 )}
               >
+                {/* Handle multiline content */}
                 {message.content.split('\n').map((line, index) => (
                   <p key={index} className={cn("min-h-[1em]", index > 0 ? "mt-1" : "")}>{line || '\u00A0'}</p>
                 ))}
@@ -174,6 +180,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
               )}
             </div>
           ))}
+          {/* Loading indicator specifically for chat responses */}
           {isLoading && (
             <div className="flex items-start gap-3 justify-start">
               <Avatar className="h-8 w-8 flex-shrink-0">
@@ -181,7 +188,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
               </Avatar>
               <div className="bg-muted text-muted-foreground rounded-lg px-4 py-2 flex items-center space-x-2 shadow-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                 <span>{messages.some(m => m.role === 'system' && m.content === 'reading') ? 'Reading files...' : 'Analyzing...'}</span>
+                 <span>Analyzing...</span> {/* Changed from conditional text */}
               </div>
             </div>
           )}
@@ -190,7 +197,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
       <div className="flex items-center p-4 border-t bg-background">
         <Input
           type="text"
-          placeholder={disabled ? "Select industry and upload file(s) first..." : "Ask about your project(s)..."}
+          placeholder={disabled ? "Generate summary first..." : "Ask about your project(s)..."}
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
@@ -213,3 +220,4 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
     </div>
   );
 }
+
