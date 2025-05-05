@@ -16,7 +16,7 @@ export interface Message {
   content: string;
 }
 
-// Example prompts based on potential use cases
+// Example prompts based on potential use cases and industry
 const examplePrompts: Record<string, string[]> = {
   general: [
     "Summarize the key milestones across all uploaded projects.",
@@ -112,7 +112,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
        <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
          <div className="space-y-4">
            {/* Show prompt suggestions only if chat is empty and not disabled */}
-           {displayMessages.length === 0 && !disabled && (
+           {displayMessages.length === 0 && !disabled && !isLoading && (
              <div className="text-center text-muted-foreground p-4 space-y-4">
                <div className="flex items-center justify-center gap-2">
                  <Sparkles className="h-5 w-5 text-accent" />
@@ -135,7 +135,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading, disabled = f
              </div>
            )}
            {/* Message displayed when prerequisites are not met */}
-           {disabled && displayMessages.length === 0 && (
+           {disabled && displayMessages.length === 0 && !isLoading && (
              <div className="text-center text-muted-foreground p-4">
                 Please select an industry and upload file(s) to start the chat.
              </div>

@@ -63,11 +63,12 @@ export default function Home() {
         setUploadedFiles(newFilesData);
         // Reset chat when new files are uploaded, removing system message
         setMessages([
-          {
-            id: 'initial',
-            role: 'assistant',
-            content: `${newFilesData.length} file(s) uploaded successfully. How can I help you analyze these projects?`,
-          }
+          // Remove the initial message to allow prompt suggestions to show
+          // {
+          //   id: 'initial',
+          //   role: 'assistant',
+          //   content: `${newFilesData.length} file(s) uploaded successfully. How can I help you analyze these projects?`,
+          // }
         ]);
       })
       .catch((err) => {
@@ -160,12 +161,9 @@ export default function Home() {
               onSelectIndustry={(industry) => {
                 setSelectedIndustry(industry);
                 // Optionally reset chat if industry changes after files are uploaded
-                if (uploadedFiles.length > 0) {
-                   setMessages([{
-                       id: 'initial',
-                       role: 'assistant',
-                       content: `${uploadedFiles.length} file(s) uploaded. Industry set to ${industry?.label || 'General'}. How can I help?`,
-                   }]);
+                // Reset chat completely to allow prompt suggestions to show
+                 if (uploadedFiles.length > 0) {
+                   setMessages([]);
                  }
               }}
               disabled={combinedLoading && !!selectedIndustry} // Disable selector while loading if an industry is already selected
@@ -187,7 +185,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <Card className={`w-full shadow-lg ${chatDisabled ? 'opacity-50' : ''}`}>
+        <Card className={`w-full shadow-lg ${chatDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
           <CardHeader>
             <CardTitle>Step 3: Chat with AI</CardTitle>
             <CardDescription>Ask questions about your project data. Use the suggestions or type your own.</CardDescription>
