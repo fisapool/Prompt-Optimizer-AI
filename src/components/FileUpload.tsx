@@ -1,45 +1,90 @@
+// src/components/FileUpload.tsx
 'use client';
 
 import type * as React from 'react';
-import { useState, useRef } from 'react';
-import { UploadCloud, X } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { UploadCloud, X, File as FileIcon } from 'lucide-react'; // Added FileIcon
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area'; // Added ScrollArea
+import { Badge } from '@/components/ui/badge'; // Added Badge
 import { cn } from '@/lib/utils';
 
 interface FileUploadProps {
-  onFileUpload: (file: File | null) => void;
+  onFileUpload: (files: FileList | null) => void;
   disabled?: boolean;
+  accept?: string; // Allow specifying accepted file types
 }
 
-export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+export function FileUpload({
+  onFileUpload,
+  disabled = false,
+  accept = ".mpp,.xlsx,.xls,.csv,.pdf,.json,.txt", // Default accept types
+}: FileUploadProps) {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null;
-    setSelectedFile(file);
-    onFileUpload(file);
-    // Reset input value to allow uploading the same file again
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (files) {
+      const newFiles = Array.from(files);
+      // Prevent duplicates based on name and size (simple check)
+      const uniqueNewFiles = newFiles.filter(newFile =>
+        !selectedFiles.some(existingFile =>
+          existingFile.name === newFile.name && existingFile.size === newFile.size
+        )
+      );
+      const updatedFiles = [...selectedFiles, ...uniqueNewFiles];
+      setSelectedFiles(updatedFiles);
+      // Create a new FileList for the callback
+      const dataTransfer = new DataTransfer();
+      updatedFiles.forEach(file => dataTransfer.items.add(file));
+      onFileUpload(dataTransfer.files.length > 0 ? dataTransfer.files : null);
+    } else {
+      setSelectedFiles([]);
+      onFileUpload(null);
+    }
+    // Reset input value to allow uploading the same file(s) again if needed
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  }, [onFileUpload, selectedFiles]);
+
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(event.target.files);
   };
 
   const handleButtonClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleClearFile = (event: React.MouseEvent<HTMLButtonElement>) => {
-     event.stopPropagation(); // Prevent triggering the label's click
-     event.preventDefault(); // Prevent default button behavior if inside a form
-    setSelectedFile(null);
-    onFileUpload(null);
+  // Updated to clear all selected files
+  const handleClearAllFiles = (event: React.MouseEvent<HTMLButtonElement>) => {
+     event.stopPropagation();
+     event.preventDefault();
+     setSelectedFiles([]);
+     onFileUpload(null);
+     if (fileInputRef.current) {
+       fileInputRef.current.value = '';
+     }
+  };
+
+   // Function to remove a specific file
+   const handleRemoveFile = (indexToRemove: number, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    event.preventDefault();
+    const updatedFiles = selectedFiles.filter((_, index) => index !== indexToRemove);
+    setSelectedFiles(updatedFiles);
+
+    const dataTransfer = new DataTransfer();
+    updatedFiles.forEach(file => dataTransfer.items.add(file));
+    onFileUpload(dataTransfer.files.length > 0 ? dataTransfer.files : null);
+
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+        fileInputRef.current.value = ''; // Reset input value
+      }
   };
 
   const handleDragEnter = (event: React.DragEvent<HTMLLabelElement>) => {
@@ -53,14 +98,18 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
     event.preventDefault();
     event.stopPropagation();
     if (disabled) return;
-    setIsDragging(false);
+    // Only set to false if not dragging over a child element
+     if ((event.target as Element).id === 'dropzone-label') {
+       setIsDragging(false);
+     }
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
     if (disabled) return;
-    // You can add visual cues here if needed
+    // Indicate drag is allowed
+     event.dataTransfer.dropEffect = 'copy';
   };
 
   const handleDrop = (event: React.DragEvent<HTMLLabelElement>) => {
@@ -68,18 +117,13 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
     event.stopPropagation();
     if (disabled) return;
     setIsDragging(false);
-
-    const file = event.dataTransfer.files?.[0] || null;
-    if (file) {
-      setSelectedFile(file);
-      onFileUpload(file);
-    }
+    handleFiles(event.dataTransfer.files);
   };
 
-
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <Label
+        id="dropzone-label"
         htmlFor="file-upload"
         className={cn(
           "flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted hover:bg-accent/50 transition-colors",
@@ -93,31 +137,16 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
       >
         <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
           <UploadCloud className="w-10 h-10 mb-3 text-muted-foreground" />
-          {selectedFile ? (
-             <>
-               <p className="mb-2 text-sm text-foreground font-semibold">{selectedFile.name}</p>
-               <p className="text-xs text-muted-foreground">
-                 ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB) - Click or drag to replace
-               </p>
-               <Button
-                 variant="ghost"
-                 size="sm"
-                 className="mt-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                 onClick={handleClearFile} // Use the specific handler
-                 aria-label="Remove selected file"
-               >
-                 <X className="mr-1 h-4 w-4" /> Remove
-               </Button>
-             </>
-          ) : (
-            <>
-              <p className="mb-2 text-sm text-foreground">
-                <span className="font-semibold">Click to upload</span> or drag and drop
-              </p>
-              <p className="text-xs text-muted-foreground">
-                (e.g., .csv, .json, .txt, .pdf, .xlsx, .mpp)
-              </p>
-             </>
+          <p className="mb-2 text-sm text-foreground">
+            <span className="font-semibold">Click to upload</span> or drag and drop
+          </p>
+          <p className="text-xs text-muted-foreground">
+             Multiple files allowed (e.g., .csv, .json, .txt, .pdf, .xlsx, .mpp)
+          </p>
+          {selectedFiles.length === 0 && (
+             <Button onClick={handleButtonClick} disabled={disabled} className="mt-4 sm:w-auto" size="sm">
+               Browse Files
+             </Button>
           )}
         </div>
         <Input
@@ -126,14 +155,54 @@ export function FileUpload({ onFileUpload, disabled = false }: FileUploadProps) 
           className="hidden"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".mpp,.xlsx,.xls,.csv,.pdf,.json,.txt" // Updated accepted file types
+          accept={accept}
           disabled={disabled}
+          multiple // Allow multiple files
         />
       </Label>
-      {!selectedFile && (
-         <Button onClick={handleButtonClick} disabled={disabled} className="w-full sm:w-auto">
-           Browse Files
-         </Button>
+
+      {selectedFiles.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h4 className="text-sm font-medium text-foreground">Selected Files ({selectedFiles.length}):</h4>
+             <Button
+               variant="ghost"
+               size="sm"
+               className="text-destructive hover:text-destructive hover:bg-destructive/10"
+               onClick={handleClearAllFiles}
+               disabled={disabled}
+               aria-label="Remove all selected files"
+             >
+               <X className="mr-1 h-4 w-4" /> Clear All
+             </Button>
+          </div>
+
+          <ScrollArea className="h-40 w-full rounded-md border p-2">
+             <div className="space-y-2 pr-2">
+              {selectedFiles.map((file, index) => (
+                <div key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between p-2 rounded bg-secondary/50">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm text-secondary-foreground truncate" title={file.name}>{file.name}</span>
+                    <Badge variant="outline" className="text-xs whitespace-nowrap">
+                       ({(file.size / 1024).toFixed(1)} KB)
+                     </Badge>
+                  </div>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                     onClick={(e) => handleRemoveFile(index, e)}
+                     disabled={disabled}
+                     aria-label={`Remove ${file.name}`}
+                   >
+                     <X className="h-4 w-4" />
+                   </Button>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
       )}
     </div>
   );
