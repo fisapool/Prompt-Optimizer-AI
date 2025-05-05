@@ -98,8 +98,18 @@ export function ChatInterface({
 
    const handlePromptClick = (prompt: string) => {
      if (!isLoading && !disabled) {
-       setInput(prompt);
-       // In customization mode, we don't auto-send, user confirms via button/enter
+       // Append the suggestion to the current input, separated by a newline
+       setInput((prevInput) => {
+          const trimmedInput = prevInput.trim();
+          if (trimmedInput === '') {
+            return prompt;
+          } else {
+            return `${trimmedInput}\n${prompt}`; // Append with a newline
+          }
+       });
+       // Focus the input field after adding a suggestion
+       const inputElement = document.querySelector<HTMLInputElement>('[aria-label="Chat input"]');
+       inputElement?.focus();
      }
    };
 
@@ -148,7 +158,7 @@ export function ChatInterface({
   const sendButtonLabel = chatPurpose === 'customization' ? "Add Customization" : "Send Message";
   const clearButtonTooltip = chatPurpose === 'customization' ? "Clear Customizations" : "Clear Chat";
   const suggestionsTitle = chatPurpose === 'customization'
-    ? (promptSuggestions.length > 0 ? "Suggested customizations based on your data:" : "Need ideas? Try these customization examples:")
+    ? (promptSuggestions.length > 0 ? "Suggested customizations (click to add):" : "Need ideas? Try these customization examples:")
     : (promptSuggestions.length > 0 ? "Suggested prompts based on your data:" : "Need inspiration? Try these examples:");
   const suggestionsFooter = chatPurpose === 'customization' ? "Or type your own customization below." : "Or type your own question below.";
   const disabledText = chatPurpose === 'customization'
