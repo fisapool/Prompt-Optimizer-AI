@@ -13,7 +13,7 @@ import { ChatInterface, type Message } from '@/components/ChatInterface';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Terminal, Bot, Loader2, Wand2, Copy, Check } from "lucide-react"; // Added Copy, Check
+import { Terminal, Loader2, Wand2, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react"; // Added ThumbsUp, ThumbsDown
 import { Textarea } from "@/components/ui/textarea"; // Added Textarea for Step 5
 import { useToast } from "@/hooks/use-toast"; // Import useToast hook
 
@@ -25,6 +25,8 @@ interface UploadedFile {
   mimeType: string;
   textContent?: string; // Store extracted text content
 }
+
+type PromptFeedback = 'like' | 'dislike' | null;
 
 export default function Home() {
   const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
@@ -41,6 +43,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isReadingFiles, setIsReadingFiles] = useState(false);
   const [isCopied, setIsCopied] = useState(false); // State for copy button feedback
+  const [promptFeedback, setPromptFeedback] = useState<PromptFeedback>(null); // State for prompt feedback
   const { toast } = useToast(); // Initialize toast
 
 
@@ -101,6 +104,7 @@ export default function Home() {
     setCustomizationMessages([]); // Clear customization chat
     setPromptCustomizations([]); // Clear customization data
     setOptimizedPrompt(null); // Clear final prompt
+    setPromptFeedback(null); // Clear feedback
     if (!fileList || fileList.length === 0) {
       setUploadedFiles([]);
       return;
@@ -180,6 +184,7 @@ export default function Home() {
     setCustomizationMessages([]); // Reset customization chat
     setPromptCustomizations([]); // Reset customizations
     setOptimizedPrompt(null); // Clear final prompt
+    setPromptFeedback(null); // Clear feedback
 
     try {
       // Summarize
@@ -239,6 +244,7 @@ export default function Home() {
     const userMessage: Message = { id: Date.now().toString(), role: 'user', content: messageContent };
     setCustomizationMessages((prev) => [...prev.filter(m => m.role !== 'system'), userMessage]);
     setPromptCustomizations((prev) => [...prev, messageContent]); // Add the raw text to customizations list
+    setPromptFeedback(null); // Clear feedback when customizations change
     // No AI call here, just updating state
   };
 
@@ -247,6 +253,7 @@ export default function Home() {
     setCustomizationMessages([]);
     setPromptCustomizations([]); // Clear stored customization text
     setError(null); // Also clear any existing related errors
+    setPromptFeedback(null); // Clear feedback when customizations are cleared
   };
 
   // Handle generating the final optimized prompt
@@ -260,6 +267,7 @@ export default function Home() {
     setIsGeneratingFinalPrompt(true);
     setError(null);
     setOptimizedPrompt(null); // Clear previous result
+    setPromptFeedback(null); // Clear feedback for new prompt
 
     try {
         const input: GenerateOptimizedPromptInput = {
@@ -302,6 +310,21 @@ export default function Home() {
               });
           });
       }
+  };
+
+  // Handle prompt feedback
+   const handleLikePrompt = () => {
+    setPromptFeedback(prev => (prev === 'like' ? null : 'like'));
+    // Optionally send feedback data
+    console.log("Feedback: Liked");
+    toast({ title: "Feedback Received", description: "Thanks for your feedback!" });
+  };
+
+  const handleDislikePrompt = () => {
+    setPromptFeedback(prev => (prev === 'dislike' ? null : 'dislike'));
+    // Optionally send feedback data
+    console.log("Feedback: Disliked");
+    toast({ title: "Feedback Received", description: "Thanks for your feedback!" });
   };
 
 
@@ -348,6 +371,7 @@ export default function Home() {
                 setCustomizationMessages([]);
                 setPromptCustomizations([]);
                 setOptimizedPrompt(null);
+                setPromptFeedback(null); // Clear feedback
                 setUploadedFiles([]);
               }}
               disabled={isProcessing && !!selectedIndustry}
@@ -461,13 +485,14 @@ export default function Home() {
                  <span>Generating optimized prompt...</span>
                </div>
              ) : optimizedPrompt ? (
-                <div className="relative">
+                <div className="relative space-y-3">
                    <Textarea
                      readOnly
                      value={optimizedPrompt}
                      className="w-full h-60 resize-none pr-12 bg-muted/30" // Add padding for the button
                      aria-label="Optimized Prompt"
                    />
+                   {/* Copy Button */}
                    <Button
                      variant="ghost"
                      size="icon"
@@ -477,6 +502,31 @@ export default function Home() {
                    >
                      {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                    </Button>
+
+                   {/* Feedback Buttons */}
+                   <div className="flex justify-end space-x-2 pt-2">
+                     <span className="text-sm text-muted-foreground mr-2">Was this prompt helpful?</span>
+                     <Button
+                       variant={promptFeedback === 'like' ? 'secondary' : 'ghost'}
+                       size="icon"
+                       className={`h-8 w-8 ${promptFeedback === 'like' ? 'text-primary border border-primary' : 'text-muted-foreground hover:text-primary'}`}
+                       onClick={handleLikePrompt}
+                       aria-pressed={promptFeedback === 'like'}
+                       aria-label="Like the prompt"
+                     >
+                       <ThumbsUp className="h-4 w-4" />
+                     </Button>
+                     <Button
+                       variant={promptFeedback === 'dislike' ? 'secondary' : 'ghost'}
+                       size="icon"
+                       className={`h-8 w-8 ${promptFeedback === 'dislike' ? 'text-destructive border border-destructive' : 'text-muted-foreground hover:text-destructive'}`}
+                       onClick={handleDislikePrompt}
+                       aria-pressed={promptFeedback === 'dislike'}
+                       aria-label="Dislike the prompt"
+                     >
+                       <ThumbsDown className="h-4 w-4" />
+                     </Button>
+                   </div>
                  </div>
              ) : (
                <p className="text-sm text-muted-foreground italic text-center">
