@@ -133,7 +133,8 @@ export async function analyzeProjectData(input: AnalyzeProjectDataInput): Promis
        return result;
   } catch (e) {
       console.error("Error in analyzeProjectTextFlow:", e);
-       return { answer: `An error occurred during the AI analysis: ${e instanceof Error ? e.message : 'Unknown error'}` };
+      const errorMessage = e instanceof Error ? e.message : String(e); // Handle non-Error types
+       return { answer: `An error occurred during the AI analysis: ${errorMessage}` };
   }
 }
 
@@ -178,9 +179,8 @@ const analyzeProjectTextFlow = ai.defineFlow<
   outputSchema: AnalyzeProjectDataOutputSchema,
 },
 async (input) => {
-  // Consider using a model with a larger context window if combined text is very long
-  // Pass the model name directly as a string
-  const {output} = await analyzeProjectTextPrompt(input, { model: 'googleai/gemini-1.5-flash-latest' }); // Use 1.5 flash for potentially larger context
+  // Use the default model configured in ai-instance.ts
+  const {output} = await analyzeProjectTextPrompt(input);
   if (!output) {
     throw new Error("AI analysis returned no output.");
   }
