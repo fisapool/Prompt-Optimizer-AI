@@ -179,8 +179,8 @@ const analyzeProjectTextFlow = ai.defineFlow<
 },
 async (input) => {
   // Consider using a model with a larger context window if combined text is very long
-  // e.g., model: ai.getModel('googleai/gemini-1.5-flash-latest')
-  const {output} = await analyzeProjectTextPrompt(input, { model: ai.getModel('googleai/gemini-1.5-flash-latest') }); // Use 1.5 flash for potentially larger context
+  // Pass the model name directly as a string
+  const {output} = await analyzeProjectTextPrompt(input, { model: 'googleai/gemini-1.5-flash-latest' }); // Use 1.5 flash for potentially larger context
   if (!output) {
     throw new Error("AI analysis returned no output.");
   }
