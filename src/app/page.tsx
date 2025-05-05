@@ -128,7 +128,8 @@ export default function Home() {
         };
         reader.onerror = (e) => {
           console.error(`Error reading file ${file.name}:`, e);
-          reject(new Error(`Failed to read file ${file.name}`));
+          // Reject with a more informative error message including the event if possible
+          reject(new Error(`Failed to read file ${file.name}. Error: ${e ? String(e) : 'unknown'}`));
         };
         reader.readAsDataURL(file);
       });
@@ -141,8 +142,9 @@ export default function Home() {
         setCustomizationMessages([]);
       })
       .catch((err) => {
-        console.error("Error reading one or more files:", err);
-        setError(`Error reading files: ${err.message}`);
+        console.error("Error reading one or more files:", err); // Log the full error object
+        const errorDetails = err instanceof Error ? err.message : String(err); // Get a string representation
+        setError(`Error reading files: ${errorDetails}`); // Use the string representation
         setUploadedFiles([]);
         setCustomizationMessages([]);
       })
@@ -227,7 +229,7 @@ export default function Home() {
 
     } catch (err) {
       console.error("AI processing failed:", err);
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during processing.";
+      const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
       setError(`AI processing failed: ${errorMessage}`);
       setProjectSummary(null);
       setPromptSuggestions([]);
@@ -283,7 +285,7 @@ export default function Home() {
 
     } catch (err) {
       console.error("Final prompt generation failed:", err);
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during prompt generation.";
+      const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
       setError(`Failed to generate optimized prompt: ${errorMessage}`);
       setOptimizedPrompt(null);
     } finally {
