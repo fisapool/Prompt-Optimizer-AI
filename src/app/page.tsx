@@ -20,7 +20,6 @@ interface UploadedFile {
 
 export default function Home() {
   const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
-  // State to hold multiple uploaded files
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +35,9 @@ export default function Home() {
     }
 
     setIsReadingFiles(true); // Start reading indicator
+    // Add a system message to indicate file reading is in progress
+     setMessages([{ id: 'system-reading', role: 'system', content: 'reading' }]);
+
     const filesArray = Array.from(fileList);
     const fileReadPromises: Promise<UploadedFile>[] = [];
 
@@ -59,7 +61,7 @@ export default function Home() {
     Promise.all(fileReadPromises)
       .then((newFilesData) => {
         setUploadedFiles(newFilesData);
-        // Reset chat when new files are uploaded
+        // Reset chat when new files are uploaded, removing system message
         setMessages([
           {
             id: 'initial',
@@ -72,7 +74,7 @@ export default function Home() {
         console.error("Error reading one or more files:", err);
         setError(`Error reading files: ${err.message}`);
         setUploadedFiles([]); // Clear files on error
-        setMessages([]);
+        setMessages([]); // Clear messages on error, including system message
       })
       .finally(() => {
         setIsReadingFiles(false); // Stop reading indicator
@@ -87,7 +89,7 @@ export default function Home() {
     if (isLoading || isReadingFiles) return;
 
     const userMessage: Message = { id: Date.now().toString(), role: 'user', content: messageContent };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev.filter(m => m.role !== 'system'), userMessage]); // Remove system messages before adding user message
     setIsLoading(true);
     setError(null);
 
@@ -122,7 +124,10 @@ export default function Home() {
     }
   };
 
+  // Use combined loading state for UI elements
   const combinedLoading = isLoading || isReadingFiles;
+  // Determine if the chat should be disabled
+  const chatDisabled = !selectedIndustry || uploadedFiles.length === 0 || isReadingFiles;
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-12 lg:p-24 bg-background">
@@ -152,7 +157,18 @@ export default function Home() {
           <CardContent>
             <IndustrySelector
               selectedIndustry={selectedIndustry}
-              onSelectIndustry={setSelectedIndustry}
+              onSelectIndustry={(industry) => {
+                setSelectedIndustry(industry);
+                // Optionally reset chat if industry changes after files are uploaded
+                if (uploadedFiles.length > 0) {
+                   setMessages([{
+                       id: 'initial',
+                       role: 'assistant',
+                       content: `${uploadedFiles.length} file(s) uploaded. Industry set to ${industry?.label || 'General'}. How can I help?`,
+                   }]);
+                 }
+              }}
+              disabled={combinedLoading && !!selectedIndustry} // Disable selector while loading if an industry is already selected
             />
           </CardContent>
         </Card>
@@ -160,29 +176,29 @@ export default function Home() {
         <Card className="w-full shadow-lg">
           <CardHeader>
             <CardTitle>Step 2: Upload Project Files</CardTitle>
-            <CardDescription>Upload one or more project management files (e.g., .mpp, .xlsx, .csv, .pdf, .json, .txt).</CardDescription>
+            <CardDescription>Upload one or more project management files (e.g., .txt, .csv, .json). PDF, XLSX, MPP files will be skipped during analysis.</CardDescription>
           </CardHeader>
           <CardContent>
             <FileUpload
               onFileUpload={handleFileUpload}
-              disabled={combinedLoading}
-              accept=".mpp,.xlsx,.xls,.csv,.pdf,.json,.txt" // Pass accepted types
+              disabled={combinedLoading} // Disable upload while loading
+              accept=".txt,.csv,.json,.pdf,.xlsx,.xls,.mpp" // Accept all relevant types, filtering happens in AI flow
             />
-            {/* Displaying selected file count moved inside FileUpload */}
           </CardContent>
         </Card>
 
-        <Card className={`w-full shadow-lg ${!selectedIndustry || uploadedFiles.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+        <Card className={`w-full shadow-lg ${chatDisabled ? 'opacity-50' : ''}`}>
           <CardHeader>
             <CardTitle>Step 3: Chat with AI</CardTitle>
-            <CardDescription>Ask questions about your project data.</CardDescription>
+            <CardDescription>Ask questions about your project data. Use the suggestions or type your own.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChatInterface
               messages={messages}
               onSendMessage={handleSendMessage}
-              isLoading={combinedLoading} // Use combined loading state
-              disabled={!selectedIndustry || uploadedFiles.length === 0 || isReadingFiles}
+              isLoading={combinedLoading} // Pass combined loading state
+              disabled={chatDisabled} // Pass explicit disabled state
+              industry={selectedIndustry?.value} // Pass selected industry value
             />
           </CardContent>
         </Card>
