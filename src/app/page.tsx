@@ -16,6 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Terminal, Loader2, Wand2, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react"; // Added ThumbsUp, ThumbsDown
 import { Textarea } from "@/components/ui/textarea"; // Added Textarea for Step 5
 import { useToast } from "@/hooks/use-toast"; // Import useToast hook
+import { ProgressTracker } from "@/components/ProgressTracker";
+import { useProgress } from "@/hooks/useProgress";
 
 
 // Define structure for uploaded file state
@@ -45,6 +47,13 @@ export default function Home() {
   const [isCopied, setIsCopied] = useState(false); // State for copy button feedback
   const [promptFeedback, setPromptFeedback] = useState<PromptFeedback>(null); // State for prompt feedback
   const { toast } = useToast(); // Initialize toast
+  const {
+    stages,
+    currentStage,
+    setStageStatus,
+    setStageProgress,
+    moveToNextStage
+  } = useProgress();
 
 
   // Helper function to extract text content from a Data URI
@@ -97,7 +106,7 @@ export default function Home() {
   }, []);
 
 
-  const handleFileUpload = useCallback((fileList: FileList | null) => {
+  const handleFileUpload = useCallback(async (fileList: FileList | null) => {
     setError(null);
     setProjectSummary(null);
     setPromptSuggestions([]); // Clear suggestions
@@ -112,6 +121,8 @@ export default function Home() {
 
     setIsReadingFiles(true);
     setCustomizationMessages([{ id: 'system-reading', role: 'system', content: 'reading' }]);
+    setStageStatus('file-upload', 'in-progress');
+    setStageProgress('file-upload', 50);
 
     const filesArray = Array.from(fileList);
     const fileReadPromises: Promise<UploadedFile>[] = [];
@@ -136,21 +147,23 @@ export default function Home() {
       fileReadPromises.push(promise);
     });
 
-    Promise.all(fileReadPromises)
-      .then((newFilesData) => {
-        setUploadedFiles(newFilesData);
-        setCustomizationMessages([]);
-      })
-      .catch((err) => {
-        console.error("Error reading one or more files:", err); // Log the full error object
-        const errorDetails = err instanceof Error ? err.message : String(err); // Get a string representation
-        setError(`Error reading files: ${errorDetails}`); // Use the string representation
-        setUploadedFiles([]);
-        setCustomizationMessages([]);
-      })
-      .finally(() => {
-        setIsReadingFiles(false);
-      });
+    try {
+      const newFilesData = await Promise.all(fileReadPromises);
+      setUploadedFiles(newFilesData);
+      setCustomizationMessages([]);
+      setStageStatus('file-upload', 'completed');
+      setStageProgress('file-upload', 100);
+      moveToNextStage();
+    } catch (err) {
+      console.error("Error reading one or more files:", err); // Log the full error object
+      const errorDetails = err instanceof Error ? err.message : String(err); // Get a string representation
+      setError(`Error reading files: ${errorDetails}`); // Use the string representation
+      setUploadedFiles([]);
+      setCustomizationMessages([]);
+      setStageStatus('file-upload', 'error');
+    } finally {
+      setIsReadingFiles(false);
+    }
   }, [extractTextFromDataUri]);
 
 
@@ -187,6 +200,8 @@ export default function Home() {
     setPromptCustomizations([]); // Reset customizations
     setOptimizedPrompt(null); // Clear final prompt
     setPromptFeedback(null); // Clear feedback
+    setStageStatus('ai-analysis', 'in-progress');
+    setStageProgress('ai-analysis', 50);
 
     try {
       // Summarize
@@ -227,12 +242,16 @@ export default function Home() {
           }
       }
 
+      setStageStatus('ai-analysis', 'completed');
+      setStageProgress('ai-analysis', 100);
+      moveToNextStage();
     } catch (err) {
       console.error("AI processing failed:", err);
       const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
       setError(`AI processing failed: ${errorMessage}`);
       setProjectSummary(null);
       setPromptSuggestions([]);
+      setStageStatus('ai-analysis', 'error');
     } finally {
       setIsSummarizing(false);
     }
@@ -270,6 +289,8 @@ export default function Home() {
     setError(null);
     setOptimizedPrompt(null); // Clear previous result
     setPromptFeedback(null); // Clear feedback for new prompt
+    setStageStatus('prompt-generation', 'in-progress');
+    setStageProgress('prompt-generation', 50);
 
     try {
         const input: GenerateOptimizedPromptInput = {
@@ -283,11 +304,14 @@ export default function Home() {
         setOptimizedPrompt(response.optimizedPrompt);
         setIsCopied(false); // Reset copied state
 
+        setStageStatus('prompt-generation', 'completed');
+        setStageProgress('prompt-generation', 100);
     } catch (err) {
       console.error("Final prompt generation failed:", err);
       const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
       setError(`Failed to generate optimized prompt: ${errorMessage}`);
       setOptimizedPrompt(null);
+      setStageStatus('prompt-generation', 'error');
     } finally {
         setIsGeneratingFinalPrompt(false);
     }
@@ -347,6 +371,20 @@ export default function Home() {
             Generate optimized prompts tailored to your project data.
           </p>
         </header>
+
+        {/* Add Progress Tracker */}
+        <Card className="w-full shadow-lg">
+          <CardHeader>
+            <CardTitle>Progress</CardTitle>
+            <CardDescription>Track your prompt generation progress</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProgressTracker
+              stages={stages}
+              currentStage={currentStage}
+            />
+          </CardContent>
+        </Card>
 
         {error && (
           <Alert variant="destructive">

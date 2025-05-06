@@ -25,12 +25,17 @@ const industries: Industry[] = [
   { value: 'general', label: 'General Business', icon: Building },
 ];
 
-interface IndustrySelectorProps {
+export interface IndustrySelectorProps {
   selectedIndustry: Industry | null;
   onSelectIndustry: (industry: Industry | null) => void;
+  disabled?: boolean;
 }
 
-export function IndustrySelector({ selectedIndustry, onSelectIndustry }: IndustrySelectorProps) {
+export function IndustrySelector({
+  selectedIndustry,
+  onSelectIndustry,
+  disabled = false
+}: IndustrySelectorProps) {
   const handleValueChange = (value: string) => {
     const industry = industries.find((ind) => ind.value === value) || null;
     onSelectIndustry(industry);
@@ -39,7 +44,7 @@ export function IndustrySelector({ selectedIndustry, onSelectIndustry }: Industr
   return (
     <div className="space-y-2">
       <Label htmlFor="industry-select">Industry</Label>
-      <Select value={selectedIndustry?.value} onValueChange={handleValueChange}>
+      <Select value={selectedIndustry?.value} onValueChange={handleValueChange} disabled={disabled}>
         <SelectTrigger id="industry-select" className="w-full">
           <SelectValue placeholder="Select an industry..." />
         </SelectTrigger>
