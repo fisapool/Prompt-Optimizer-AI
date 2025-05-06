@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea"; // Added Textarea for Step 
 import { useToast } from "@/hooks/use-toast"; // Import useToast hook
 import { ProgressTracker } from "@/components/ProgressTracker";
 import { useProgress } from "@/hooks/useProgress";
+import { errorHandler } from '@/services/error-handling';
 
 
 // Define structure for uploaded file state
@@ -134,12 +135,9 @@ export default function Home() {
           const dataUri = e.target?.result as string;
           const mimeType = file.type || 'application/octet-stream';
           const { success, content } = extractTextFromDataUri(dataUri, mimeType);
-          // Store text content directly if successfully extracted
-          resolve({ name: file.name, dataUri, mimeType, textContent: success ? content : content }); // Store skip message if not success
+          resolve({ name: file.name, dataUri, mimeType, textContent: success ? content : content });
         };
         reader.onerror = (e) => {
-          console.error(`Error reading file ${file.name}:`, e);
-          // Reject with a more informative error message including the event if possible
           reject(new Error(`Failed to read file ${file.name}. Error: ${e ? String(e) : 'unknown'}`));
         };
         reader.readAsDataURL(file);
@@ -148,16 +146,15 @@ export default function Home() {
     });
 
     try {
-      const newFilesData = await Promise.all(fileReadPromises);
+      const newFilesData = await errorHandler.withRetry('file-upload', () => Promise.all(fileReadPromises));
       setUploadedFiles(newFilesData);
       setCustomizationMessages([]);
       setStageStatus('file-upload', 'completed');
       setStageProgress('file-upload', 100);
       moveToNextStage();
     } catch (err) {
-      console.error("Error reading one or more files:", err); // Log the full error object
-      const errorDetails = err instanceof Error ? err.message : String(err); // Get a string representation
-      setError(`Error reading files: ${errorDetails}`); // Use the string representation
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(error.message);
       setUploadedFiles([]);
       setCustomizationMessages([]);
       setStageStatus('file-upload', 'error');
@@ -213,42 +210,46 @@ export default function Home() {
         })),
         industry: selectedIndustry.value,
       };
-      const summaryResponse = await summarizeProjectData(summaryInput);
+      
+      const summaryResponse = await errorHandler.withRetry('ai-analysis', () => 
+        summarizeProjectData(summaryInput)
+      );
       setProjectSummary(summaryResponse.summary);
-
 
       // Generate suggestions only if summary was successful
       if (summaryResponse.summary && !summaryResponse.summary.startsWith("Could not process")) {
         setIsGeneratingSuggestions(true);
         const suggestionsInput: GeneratePromptSuggestionsInput = {
-           combinedFileTextContent: combinedTextContent, // Use pre-calculated combined text
-           projectSummary: summaryResponse.summary,
-           industry: selectedIndustry.value,
+          combinedFileTextContent: combinedTextContent,
+          projectSummary: summaryResponse.summary,
+          industry: selectedIndustry.value,
         };
+        
         try {
-           const suggestionsResponse = await generatePromptSuggestions(suggestionsInput);
-           setPromptSuggestions(suggestionsResponse.suggestions);
+          const suggestionsResponse = await errorHandler.withRetry('ai-suggestions', () =>
+            generatePromptSuggestions(suggestionsInput)
+          );
+          setPromptSuggestions(suggestionsResponse.suggestions);
         } catch (suggestionErr) {
-             console.error("AI suggestion generation failed:", suggestionErr);
-             setError("Generated summary, but failed to generate prompt customization suggestions.");
-             setPromptSuggestions([]);
+          const error = suggestionErr instanceof Error ? suggestionErr : new Error(String(suggestionErr));
+          setError("Generated summary, but failed to generate prompt customization suggestions.");
+          setPromptSuggestions([]);
         } finally {
-            setIsGeneratingSuggestions(false);
+          setIsGeneratingSuggestions(false);
         }
       } else {
-          setPromptSuggestions([]);
-          if (!error && summaryResponse.summary) { // Only set error if summary exists and failed
-              setError(summaryResponse.summary);
-          }
+        setPromptSuggestions([]);
+        if (!error && summaryResponse.summary) {
+          setError(summaryResponse.summary);
+        }
       }
 
       setStageStatus('ai-analysis', 'completed');
       setStageProgress('ai-analysis', 100);
       moveToNextStage();
     } catch (err) {
-      console.error("AI processing failed:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
-      setError(`AI processing failed: ${errorMessage}`);
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(`AI processing failed: ${error.message}`);
       setProjectSummary(null);
       setPromptSuggestions([]);
       setStageStatus('ai-analysis', 'error');
@@ -300,16 +301,17 @@ export default function Home() {
             customizations: promptCustomizations, // Pass collected customizations
         };
 
-        const response = await generateOptimizedPrompt(input);
+        const response = await errorHandler.withRetry('prompt-generation', () =>
+          generateOptimizedPrompt(input)
+        );
         setOptimizedPrompt(response.optimizedPrompt);
         setIsCopied(false); // Reset copied state
 
         setStageStatus('prompt-generation', 'completed');
         setStageProgress('prompt-generation', 100);
     } catch (err) {
-      console.error("Final prompt generation failed:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
-      setError(`Failed to generate optimized prompt: ${errorMessage}`);
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(`Failed to generate optimized prompt: ${error.message}`);
       setOptimizedPrompt(null);
       setStageStatus('prompt-generation', 'error');
     } finally {
