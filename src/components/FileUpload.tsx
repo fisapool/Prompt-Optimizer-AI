@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area'; // Added ScrollArea
 import { Badge } from '@/components/ui/badge'; // Added Badge
 import { cn } from '@/lib/utils';
+import { FilePreview } from "./FilePreview";
 
 interface FileUploadProps {
   onFileUpload: (files: FileList | null) => void;
@@ -141,69 +142,74 @@ export function FileUpload({
             <span className="font-semibold">Click to upload</span> or drag and drop
           </p>
           <p className="text-xs text-muted-foreground px-2">
-             Multiple files allowed (e.g., .txt, .csv, .json, .pdf, .xlsx, .docx, .pptx, .mpp). Text content extracted from TXT, CSV, JSON.
+            Multiple files allowed (e.g., .txt, .csv, .json, .pdf, .xlsx, .docx, .pptx, .mpp). Text content extracted from TXT, CSV, JSON.
           </p>
           {selectedFiles.length === 0 && (
-             <Button onClick={handleButtonClick} disabled={disabled} className="mt-4 sm:w-auto" size="sm">
-               Browse Files
-             </Button>
+            <Button onClick={handleButtonClick} disabled={disabled} className="mt-4 sm:w-auto" size="sm">
+              Browse Files
+            </Button>
           )}
         </div>
-        <Input
+        <input
           id="file-upload"
           type="file"
-          className="hidden"
+          accept={accept}
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept={accept}
-          disabled={disabled}
           multiple // Allow multiple files
+          className="hidden"
+          disabled={disabled}
         />
       </Label>
-
-      {selectedFiles.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <h4 className="text-sm font-medium text-foreground">Selected Files ({selectedFiles.length}):</h4>
-             <Button
-               variant="ghost"
-               size="sm"
-               className="text-destructive hover:text-destructive hover:bg-destructive/10"
-               onClick={handleClearAllFiles}
-               disabled={disabled}
-               aria-label="Remove all selected files"
-             >
-               <X className="mr-1 h-4 w-4" /> Clear All
-             </Button>
-          </div>
-
-          <ScrollArea className="h-40 w-full rounded-md border p-2">
-             <div className="space-y-2 pr-2">
-              {selectedFiles.map((file, index) => (
-                <div key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between p-2 rounded bg-secondary/50">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm text-secondary-foreground truncate" title={file.name}>{file.name}</span>
-                    <Badge variant="outline" className="text-xs whitespace-nowrap">
-                       ({(file.size / 1024).toFixed(1)} KB)
-                     </Badge>
-                  </div>
-                   <Button
-                     variant="ghost"
-                     size="icon"
-                     className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
-                     onClick={(e) => handleRemoveFile(index, e)}
-                     disabled={disabled}
-                     aria-label={`Remove ${file.name}`}
-                   >
-                     <X className="h-4 w-4" />
-                   </Button>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h4 className="text-sm font-medium text-foreground">Selected Files ({selectedFiles.length}):</h4>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={handleClearAllFiles}
+            disabled={disabled}
+            aria-label="Remove all selected files"
+          >
+            <X className="mr-1 h-4 w-4" /> Clear All
+          </Button>
         </div>
-      )}
+        <ScrollArea className="h-40 w-full rounded-md border p-2">
+          <div className="space-y-2 pr-2">
+            {selectedFiles.map((file, index) => (
+              <div key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between p-2 rounded bg-secondary/50">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm text-secondary-foreground truncate" title={file.name}>{file.name}</span>
+                  <Badge variant="outline" className="text-xs whitespace-nowrap">
+                    ({(file.size / 1024).toFixed(1)} KB)
+                  </Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                  onClick={(e) => handleRemoveFile(index, e)}
+                  disabled={disabled}
+                  aria-label={`Remove ${file.name}`}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+        {selectedFiles.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-foreground mb-2">Preview Selected File</h4>
+            <FilePreview file={selectedFiles[0]} chunkSize={65536} />
+            {selectedFiles.length > 1 && (
+              <div className="text-xs text-muted-foreground mt-2">(Previewing first file only. Please select one at a time for preview.)</div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

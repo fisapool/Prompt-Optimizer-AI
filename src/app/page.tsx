@@ -515,14 +515,15 @@ export default function Home() {
             {/* ChatInterface now handles customization input */}
             <ChatInterface
               messages={customizationMessages}
-              onSendMessage={handleAddCustomization} // Changed to add customization
-              onClearChat={handleClearCustomizations} // Pass clear function
-              isLoading={isLoadingChatInput} // Use specific loading state if needed, but it's synchronous now
+              onSendMessage={handleAddCustomization}
+              onClearChat={handleClearCustomizations}
+              isLoading={isLoadingChatInput}
               disabled={!customizationActive || isProcessing}
-              promptSuggestions={promptSuggestions} // Pass dynamic suggestions for customization
+              promptSuggestions={promptSuggestions}
               isLoadingSuggestions={isGeneratingSuggestions}
               industry={selectedIndustry?.value}
-              chatPurpose="customization" // Indicate the purpose of this chat
+              chatPurpose="customization"
+              promptCustomizations={promptCustomizations}
             />
           </CardContent>
         </Card>
