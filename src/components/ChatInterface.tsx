@@ -143,11 +143,9 @@ export function ChatInterface({
   const displayMessages = messages.filter(msg => msg.role !== 'system');
 
   // Determine which prompts to display
-  const promptsToShow = promptSuggestions.length > 0
-    ? promptSuggestions
-    : (industry && staticExamplePrompts[industry])
-      ? staticExamplePrompts[industry]
-      : staticExamplePrompts.general;
+  // Group AI suggestions if present
+  const aiSuggestions = promptSuggestions.length > 0 ? promptSuggestions : [];
+  const fallbackSuggestions = (industry && staticExamplePrompts[industry]) ? staticExamplePrompts[industry] : staticExamplePrompts.general;
 
   const inputPlaceholder = disabled
     ? "Generate summary first..."
@@ -181,26 +179,54 @@ export function ChatInterface({
                      </div>
                    ) : (
                      <>
-                       <div className="flex items-center justify-center gap-2">
-                         <Wand2 className="h-5 w-5 text-accent" /> {/* Use Wand2 for generated prompts */}
-                         <p className="font-medium text-foreground">
-                           {suggestionsTitle}
-                         </p>
-                       </div>
-                        <div className="flex flex-wrap justify-center gap-2">
-                         {promptsToShow.slice(0, 4).map((prompt, index) => (
-                            <Button
-                             key={index}
-                             variant="outline"
-                             size="sm"
-                             className="text-xs md:text-sm"
-                             onClick={() => handlePromptClick(prompt)}
-                             disabled={isLoading || isLoadingSuggestions} // Disable while loading anything
-                           >
-                             {prompt}
-                           </Button>
-                         ))}
-                       </div>
+                       {/* AI Suggestions Section */}
+                       {aiSuggestions.length > 0 && (
+                         <div className="mb-2">
+                           <div className="flex items-center justify-center gap-2">
+                             <Wand2 className="h-5 w-5 text-blue-500" />
+                             <span className="font-semibold text-blue-700">AI Suggestions</span>
+                             <span className="ml-2 px-2 py-0.5 rounded bg-blue-100 text-xs text-blue-700">AI</span>
+                           </div>
+                           <div className="flex flex-wrap justify-center gap-2 mt-2">
+                             {aiSuggestions.slice(0, 4).map((prompt, index) => (
+                               <Button
+                                 key={index}
+                                 variant="outline"
+                                 size="sm"
+                                 className="text-xs md:text-sm border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-800"
+                                 onClick={() => handlePromptClick(prompt)}
+                                 disabled={isLoading || isLoadingSuggestions}
+                               >
+                                 <Sparkles className="inline-block mr-1 h-4 w-4 text-blue-400" />
+                                 {prompt}
+                               </Button>
+                             ))}
+                           </div>
+                         </div>
+                       )}
+                       {/* Fallback/User Suggestions Section */}
+                       {fallbackSuggestions.length > 0 && (
+                         <div>
+                           <div className="flex items-center justify-center gap-2">
+                             <User className="h-5 w-5 text-green-500" />
+                             <span className="font-semibold text-green-700">Your Customizations</span>
+                           </div>
+                           <div className="flex flex-wrap justify-center gap-2 mt-2">
+                             {fallbackSuggestions.slice(0, 4).map((prompt, index) => (
+                               <Button
+                                 key={index}
+                                 variant="outline"
+                                 size="sm"
+                                 className="text-xs md:text-sm border-green-400 bg-green-50 hover:bg-green-100 text-green-800"
+                                 onClick={() => handlePromptClick(prompt)}
+                                 disabled={isLoading || isLoadingSuggestions}
+                               >
+                                 {prompt}
+                               </Button>
+                             ))}
+                           </div>
+                         </div>
+                       )}
                        <p className="mt-4">{suggestionsFooter}</p>
                      </>
                    )}

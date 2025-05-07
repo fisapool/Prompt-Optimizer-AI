@@ -35,43 +35,13 @@ export async function generateOptimizedPrompt(
 
 
 // Prompt for generating the final optimized prompt
+const optimizedPromptTemplate = `You are an expert AI Prompt Engineer specializing in creating effective prompts for various AI models.\nYour goal is to generate a single, well-structured, and optimized prompt that can be used in other AI software.\n\nBase the prompt on the following information:\n- Industry: ` + "{{industry}}" + `\n- Project Summary:\n\n\u0060\u0060\u0060\n` + "{{projectSummary}}" + `\n\u0060\u0060\u0060\n- Combined Project Data Content (for context):\n\u0060\u0060\u0060\n` + "{{combinedFileTextContent}}" + `\n\u0060\u0060\u0060\n- User-Provided Customizations/Requirements:\n` + "{{#if customizations}}" + `\n` + "{{#each customizations}}" + `\n- ` + "{{this}}" + `\n` + "{{/each}}" + `\n` + "{{else}}" + `\n- (No specific user customizations provided)\n` + "{{/if}}" + `\n\nInstructions for the prompt you generate:\n1.  **Synthesize Information:** Combine insights from the summary, original content, and user customizations.\n2.  **Clarity and Conciseness:** Be clear, specific, and avoid ambiguity.\n3.  **Action-Oriented:** Phrase the core request as a clear instruction to an AI model.\n4.  **Contextual Relevance:** Ensure the prompt reflects the project's industry and key details.\n5.  **Incorporate Customizations:** Integrate the user's requirements naturally into the prompt structure.\n6.  **Output Focus:** If the user specified a desired output format or style, include that in the prompt.\n7.  **Structure:** Use formatting (like markdown lists or sections if appropriate) to make the generated prompt easy for another AI to understand.\n8.  **Tone:** Use a professional, direct, and instructional tone. Avoid conversational or ambiguous language.\n9.  **Validation:** Ensure the prompt includes all required sections and is under 500 words.\n10. **Few-Shot Example:** For complex or domain-specific outputs, include a short example at the end of the prompt, formatted as:\n---\nExample Output:\n[Insert a concise, relevant example based on the provided context.]\n---\n11. **Do NOT add conversational elements:** The final output should be *only* the prompt itself, ready to be copied and pasted. Do not include phrases like "Here is the optimized prompt:" or explanations about the prompt.\n\nGenerate the optimized prompt now.`;
+
 const generateOptimizedPromptDefinition = ai.definePrompt({
   name: 'generateOptimizedPromptDefinition',
   input: { schema: GenerateOptimizedPromptInputSchema },
   output: { schema: GenerateOptimizedPromptOutputSchema },
-  prompt: `You are an expert AI Prompt Engineer specializing in creating effective prompts for various AI models.
-Your goal is to generate a single, well-structured, and optimized prompt that can be used in other AI software.
-
-Base the prompt on the following information:
-- Industry: {{{industry}}}
-- Project Summary:
-\`\`\`
-{{{projectSummary}}}
-\`\`\`
-- Combined Project Data Content (for context):
-\`\`\`
-{{{combinedFileTextContent}}}
-\`\`\`
-- User-Provided Customizations/Requirements:
-{{#if customizations}}
-{{#each customizations}}
-- {{{this}}}
-{{/each}}
-{{else}}
-- (No specific user customizations provided)
-{{/if}}
-
-Instructions for the prompt you generate:
-1.  **Synthesize Information:** Combine insights from the summary, original content, and user customizations.
-2.  **Clarity and Conciseness:** Be clear, specific, and avoid ambiguity.
-3.  **Action-Oriented:** Phrase the core request as a clear instruction to an AI model.
-4.  **Contextual Relevance:** Ensure the prompt reflects the project's industry and key details.
-5.  **Incorporate Customizations:** Integrate the user's requirements naturally into the prompt structure.
-6.  **Output Focus:** If the user specified a desired output format or style, include that in the prompt.
-7.  **Structure:** Use formatting (like markdown lists or sections if appropriate) to make the generated prompt easy for another AI to understand.
-8.  **Do NOT add conversational elements:** The final output should be *only* the prompt itself, ready to be copied and pasted. Do not include phrases like "Here is the optimized prompt:" or explanations about the prompt.
-
-Generate the optimized prompt now.`,
+  prompt: optimizedPromptTemplate,
 });
 
 // Internal flow definition for generating the final prompt

@@ -16,6 +16,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Terminal, Loader2, Wand2, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react"; // Added ThumbsUp, ThumbsDown
 import { Textarea } from "@/components/ui/textarea"; // Added Textarea for Step 5
 import { useToast } from "@/hooks/use-toast"; // Import useToast hook
+import { ProgressTracker } from "@/components/ProgressTracker";
+import { useProgress } from "@/hooks/useProgress";
+import { errorHandler } from '@/services/error-handling';
 
 
 // Define structure for uploaded file state
@@ -45,6 +48,15 @@ export default function Home() {
   const [isCopied, setIsCopied] = useState(false); // State for copy button feedback
   const [promptFeedback, setPromptFeedback] = useState<PromptFeedback>(null); // State for prompt feedback
   const { toast } = useToast(); // Initialize toast
+  const {
+    stages,
+    currentStage,
+    setStageStatus,
+    setStageProgress,
+    moveToNextStage
+  } = useProgress();
+
+  const isLoadingPrompt = isSummarizing || isGeneratingSuggestions || isGeneratingFinalPrompt;
 
 
   // Helper function to extract text content from a Data URI
@@ -97,7 +109,7 @@ export default function Home() {
   }, []);
 
 
-  const handleFileUpload = useCallback((fileList: FileList | null) => {
+  const handleFileUpload = useCallback(async (fileList: FileList | null) => {
     setError(null);
     setProjectSummary(null);
     setPromptSuggestions([]); // Clear suggestions
@@ -112,6 +124,8 @@ export default function Home() {
 
     setIsReadingFiles(true);
     setCustomizationMessages([{ id: 'system-reading', role: 'system', content: 'reading' }]);
+    setStageStatus('file-upload', 'in-progress');
+    setStageProgress('file-upload', 50);
 
     const filesArray = Array.from(fileList);
     const fileReadPromises: Promise<UploadedFile>[] = [];
@@ -123,12 +137,9 @@ export default function Home() {
           const dataUri = e.target?.result as string;
           const mimeType = file.type || 'application/octet-stream';
           const { success, content } = extractTextFromDataUri(dataUri, mimeType);
-          // Store text content directly if successfully extracted
-          resolve({ name: file.name, dataUri, mimeType, textContent: success ? content : content }); // Store skip message if not success
+          resolve({ name: file.name, dataUri, mimeType, textContent: success ? content : content });
         };
         reader.onerror = (e) => {
-          console.error(`Error reading file ${file.name}:`, e);
-          // Reject with a more informative error message including the event if possible
           reject(new Error(`Failed to read file ${file.name}. Error: ${e ? String(e) : 'unknown'}`));
         };
         reader.readAsDataURL(file);
@@ -136,21 +147,22 @@ export default function Home() {
       fileReadPromises.push(promise);
     });
 
-    Promise.all(fileReadPromises)
-      .then((newFilesData) => {
-        setUploadedFiles(newFilesData);
-        setCustomizationMessages([]);
-      })
-      .catch((err) => {
-        console.error("Error reading one or more files:", err); // Log the full error object
-        const errorDetails = err instanceof Error ? err.message : String(err); // Get a string representation
-        setError(`Error reading files: ${errorDetails}`); // Use the string representation
-        setUploadedFiles([]);
-        setCustomizationMessages([]);
-      })
-      .finally(() => {
-        setIsReadingFiles(false);
-      });
+    try {
+      const newFilesData = await errorHandler.withRetry('file-upload', () => Promise.all(fileReadPromises));
+      setUploadedFiles(newFilesData);
+      setCustomizationMessages([]);
+      setStageStatus('file-upload', 'completed');
+      setStageProgress('file-upload', 100);
+      moveToNextStage();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(error.message);
+      setUploadedFiles([]);
+      setCustomizationMessages([]);
+      setStageStatus('file-upload', 'error');
+    } finally {
+      setIsReadingFiles(false);
+    }
   }, [extractTextFromDataUri]);
 
 
@@ -187,6 +199,8 @@ export default function Home() {
     setPromptCustomizations([]); // Reset customizations
     setOptimizedPrompt(null); // Clear final prompt
     setPromptFeedback(null); // Clear feedback
+    setStageStatus('ai-analysis', 'in-progress');
+    setStageProgress('ai-analysis', 50);
 
     try {
       // Summarize
@@ -198,41 +212,49 @@ export default function Home() {
         })),
         industry: selectedIndustry.value,
       };
-      const summaryResponse = await summarizeProjectData(summaryInput);
+      
+      const summaryResponse = await errorHandler.withRetry('ai-analysis', () => 
+        summarizeProjectData(summaryInput)
+      );
       setProjectSummary(summaryResponse.summary);
-
 
       // Generate suggestions only if summary was successful
       if (summaryResponse.summary && !summaryResponse.summary.startsWith("Could not process")) {
         setIsGeneratingSuggestions(true);
         const suggestionsInput: GeneratePromptSuggestionsInput = {
-           combinedFileTextContent: combinedTextContent, // Use pre-calculated combined text
-           projectSummary: summaryResponse.summary,
-           industry: selectedIndustry.value,
+          combinedFileTextContent: combinedTextContent,
+          projectSummary: summaryResponse.summary,
+          industry: selectedIndustry.value,
         };
+        
         try {
-           const suggestionsResponse = await generatePromptSuggestions(suggestionsInput);
-           setPromptSuggestions(suggestionsResponse.suggestions);
+          const suggestionsResponse = await errorHandler.withRetry('ai-suggestions', () =>
+            generatePromptSuggestions(suggestionsInput)
+          );
+          setPromptSuggestions(suggestionsResponse.suggestions);
         } catch (suggestionErr) {
-             console.error("AI suggestion generation failed:", suggestionErr);
-             setError("Generated summary, but failed to generate prompt customization suggestions.");
-             setPromptSuggestions([]);
+          const error = suggestionErr instanceof Error ? suggestionErr : new Error(String(suggestionErr));
+          setError("Generated summary, but failed to generate prompt customization suggestions.");
+          setPromptSuggestions([]);
         } finally {
-            setIsGeneratingSuggestions(false);
+          setIsGeneratingSuggestions(false);
         }
       } else {
-          setPromptSuggestions([]);
-          if (!error && summaryResponse.summary) { // Only set error if summary exists and failed
-              setError(summaryResponse.summary);
-          }
+        setPromptSuggestions([]);
+        if (!error && summaryResponse.summary) {
+          setError(summaryResponse.summary);
+        }
       }
 
+      setStageStatus('ai-analysis', 'completed');
+      setStageProgress('ai-analysis', 100);
+      moveToNextStage();
     } catch (err) {
-      console.error("AI processing failed:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
-      setError(`AI processing failed: ${errorMessage}`);
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(`AI processing failed: ${error.message}`);
       setProjectSummary(null);
       setPromptSuggestions([]);
+      setStageStatus('ai-analysis', 'error');
     } finally {
       setIsSummarizing(false);
     }
@@ -270,6 +292,8 @@ export default function Home() {
     setError(null);
     setOptimizedPrompt(null); // Clear previous result
     setPromptFeedback(null); // Clear feedback for new prompt
+    setStageStatus('prompt-generation', 'in-progress');
+    setStageProgress('prompt-generation', 50);
 
     try {
         const input: GenerateOptimizedPromptInput = {
@@ -279,15 +303,19 @@ export default function Home() {
             customizations: promptCustomizations, // Pass collected customizations
         };
 
-        const response = await generateOptimizedPrompt(input);
+        const response = await errorHandler.withRetry('prompt-generation', () =>
+          generateOptimizedPrompt(input)
+        );
         setOptimizedPrompt(response.optimizedPrompt);
         setIsCopied(false); // Reset copied state
 
+        setStageStatus('prompt-generation', 'completed');
+        setStageProgress('prompt-generation', 100);
     } catch (err) {
-      console.error("Final prompt generation failed:", err);
-      const errorMessage = err instanceof Error ? err.message : String(err); // Use String(err) as fallback
-      setError(`Failed to generate optimized prompt: ${errorMessage}`);
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(`Failed to generate optimized prompt: ${error.message}`);
       setOptimizedPrompt(null);
+      setStageStatus('prompt-generation', 'error');
     } finally {
         setIsGeneratingFinalPrompt(false);
     }
@@ -315,18 +343,31 @@ export default function Home() {
   };
 
   // Handle prompt feedback
-   const handleLikePrompt = () => {
-    setPromptFeedback(prev => (prev === 'like' ? null : 'like'));
-    // Optionally send feedback data
-    console.log("Feedback: Liked");
-    toast({ title: "Feedback Received", description: "Thanks for your feedback!" });
-  };
+   const handlePromptFeedback = useCallback(async (type: PromptFeedback) => {
+     setPromptFeedback(prev => (prev === type ? null : type));
+     try {
+       const res = await fetch('/api/feedback', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ type: 'prompt-feedback', payload: { feedback: type, optimizedPrompt } }),
+       });
+       if (!res.ok) {
+         throw new Error('Failed to send feedback');
+       }
+       toast({ title: 'Feedback Received', description: 'Thanks for your feedback!' });
+     } catch (e) {
+       toast({ variant: 'destructive', title: 'Error', description: 'Could not send feedback.' });
+     }
+   }, [optimizedPrompt]);
 
   const handleDislikePrompt = () => {
     setPromptFeedback(prev => (prev === 'dislike' ? null : 'dislike'));
-    // Optionally send feedback data
-    console.log("Feedback: Disliked");
-    toast({ title: "Feedback Received", description: "Thanks for your feedback!" });
+    fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'prompt-feedback', payload: { feedback: 'dislike', optimizedPrompt } }),
+    });
+    toast({ title: 'Feedback Received', description: 'Thanks for your feedback!' });
   };
 
 
@@ -347,6 +388,20 @@ export default function Home() {
             Generate optimized prompts tailored to your project data.
           </p>
         </header>
+
+        {/* Add Progress Tracker */}
+        <Card className="w-full shadow-lg">
+          <CardHeader>
+            <CardTitle>Progress</CardTitle>
+            <CardDescription>Track your prompt generation progress</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProgressTracker
+              stages={stages}
+              currentStage={currentStage}
+            />
+          </CardContent>
+        </Card>
 
         {error && (
           <Alert variant="destructive">
@@ -512,19 +567,17 @@ export default function Home() {
                        variant={promptFeedback === 'like' ? 'secondary' : 'ghost'}
                        size="icon"
                        className={`h-8 w-8 ${promptFeedback === 'like' ? 'text-primary border border-primary' : 'text-muted-foreground hover:text-primary'}`}
-                       onClick={handleLikePrompt}
-                       aria-pressed={promptFeedback === 'like'}
-                       aria-label="Like the prompt"
+                       onClick={() => handlePromptFeedback('like')}
+                       disabled={isLoadingPrompt}
                      >
                        <ThumbsUp className="h-4 w-4" />
                      </Button>
                      <Button
                        variant={promptFeedback === 'dislike' ? 'secondary' : 'ghost'}
-                       size="icon"
                        className={`h-8 w-8 ${promptFeedback === 'dislike' ? 'text-destructive border border-destructive' : 'text-muted-foreground hover:text-destructive'}`}
-                       onClick={handleDislikePrompt}
                        aria-pressed={promptFeedback === 'dislike'}
-                       aria-label="Dislike the prompt"
+                       onClick={() => handlePromptFeedback('dislike')}
+                       disabled={isLoadingPrompt}
                      >
                        <ThumbsDown className="h-4 w-4" />
                      </Button>
