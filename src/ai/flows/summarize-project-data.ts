@@ -39,6 +39,11 @@ export type SummarizeProjectDataOutput = z.infer<typeof SummarizeProjectDataOutp
 
 // Helper function to extract text content from a Data URI (remains for internal flow use)
 function extractTextFromDataUri(dataUri: string, mimeType: string): { success: boolean; content: string } {
+  // Prevent stack overflow on extremely large or malformed data URIs
+  const MAX_URI_LENGTH = 5 * 1024 * 1024; // 5MB
+  if (typeof dataUri !== 'string' || dataUri.length > MAX_URI_LENGTH) {
+    return { success: false, content: `[Error: Data URI is too large or not a string. Length: ${typeof dataUri === 'string' ? dataUri.length : 'not a string'}]` };
+  }
   const match = dataUri.match(/^data:(.+?);base64,(.+)$/);
   if (!match) {
     return { success: false, content: `Invalid data URI format (MIME type: ${mimeType || 'unknown'}).` };
