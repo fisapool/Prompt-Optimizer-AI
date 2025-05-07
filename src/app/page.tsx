@@ -56,6 +56,8 @@ export default function Home() {
     moveToNextStage
   } = useProgress();
 
+  const isLoadingPrompt = isSummarizing || isGeneratingSuggestions || isGeneratingFinalPrompt;
+
 
   // Helper function to extract text content from a Data URI
   const extractTextFromDataUri = useCallback((dataUri: string, mimeType: string): { success: boolean; content: string } => {
@@ -341,18 +343,31 @@ export default function Home() {
   };
 
   // Handle prompt feedback
-   const handleLikePrompt = () => {
-    setPromptFeedback(prev => (prev === 'like' ? null : 'like'));
-    // Optionally send feedback data
-    console.log("Feedback: Liked");
-    toast({ title: "Feedback Received", description: "Thanks for your feedback!" });
-  };
+   const handlePromptFeedback = useCallback(async (type: PromptFeedback) => {
+     setPromptFeedback(prev => (prev === type ? null : type));
+     try {
+       const res = await fetch('/api/feedback', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ type: 'prompt-feedback', payload: { feedback: type, optimizedPrompt } }),
+       });
+       if (!res.ok) {
+         throw new Error('Failed to send feedback');
+       }
+       toast({ title: 'Feedback Received', description: 'Thanks for your feedback!' });
+     } catch (e) {
+       toast({ variant: 'destructive', title: 'Error', description: 'Could not send feedback.' });
+     }
+   }, [optimizedPrompt]);
 
   const handleDislikePrompt = () => {
     setPromptFeedback(prev => (prev === 'dislike' ? null : 'dislike'));
-    // Optionally send feedback data
-    console.log("Feedback: Disliked");
-    toast({ title: "Feedback Received", description: "Thanks for your feedback!" });
+    fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'prompt-feedback', payload: { feedback: 'dislike', optimizedPrompt } }),
+    });
+    toast({ title: 'Feedback Received', description: 'Thanks for your feedback!' });
   };
 
 
@@ -552,19 +567,17 @@ export default function Home() {
                        variant={promptFeedback === 'like' ? 'secondary' : 'ghost'}
                        size="icon"
                        className={`h-8 w-8 ${promptFeedback === 'like' ? 'text-primary border border-primary' : 'text-muted-foreground hover:text-primary'}`}
-                       onClick={handleLikePrompt}
-                       aria-pressed={promptFeedback === 'like'}
-                       aria-label="Like the prompt"
+                       onClick={() => handlePromptFeedback('like')}
+                       disabled={isLoadingPrompt}
                      >
                        <ThumbsUp className="h-4 w-4" />
                      </Button>
                      <Button
                        variant={promptFeedback === 'dislike' ? 'secondary' : 'ghost'}
-                       size="icon"
                        className={`h-8 w-8 ${promptFeedback === 'dislike' ? 'text-destructive border border-destructive' : 'text-muted-foreground hover:text-destructive'}`}
-                       onClick={handleDislikePrompt}
                        aria-pressed={promptFeedback === 'dislike'}
-                       aria-label="Dislike the prompt"
+                       onClick={() => handlePromptFeedback('dislike')}
+                       disabled={isLoadingPrompt}
                      >
                        <ThumbsDown className="h-4 w-4" />
                      </Button>
