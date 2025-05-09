@@ -1,0 +1,7 @@
+Task,Status,Assignee,Priority,DueDate,Description
+Design UI,In Progress,Alice,High,2024-04-01,Create responsive design for main dashboard
+Implement API,Completed,Bob,High,2024-03-20,Develop REST API endpoints for data access
+Write Tests,Pending,Charlie,Medium,2024-04-05,Create unit and integration tests
+Database Migration,In Progress,David,High,2024-03-25,Migrate to new database schema
+Security Audit,Pending,Eve,High,2024-04-10,Conduct security review and implement fixes
+Documentation,Not Started,Frank,Medium,2024-04-15,Update API and user documentation

@@ -1,22 +1,13 @@
 # Prompt-Optimizer-AI
 
-An AI-powered tool for optimizing prompts by analyzing project files and providing industry-specific suggestions.
+An AI-powered tool for optimizing prompts by analyzing project files and providing suggestions.
 
 ## Features
 
 - **File Analysis**: Upload and analyze multiple file types (TXT, CSV, JSON, PDF, XLSX, DOCX, PPTX, MPP)
-- **Industry-Specific Optimization**: Tailored suggestions for different industries
 - **Interactive Chat Interface**: Real-time feedback and customization
 - **Progress Tracking**: Visual progress indicators for each step
 - **Modern UI**: Built with Next.js and Tailwind CSS
-
-## Supported Industries
-
-- Construction
-- Software Development
-- Healthcare
-- Marketing
-- General Business
 
 ## Getting Started
 
@@ -80,15 +71,9 @@ Prompt-Optimizer-AI/
 - File type validation
 - Progress tracking
 
-### Industry Selector
-- Industry-specific icons
-- Dropdown selection
-- Type-safe implementation
-
 ### Chat Interface
 - Real-time messaging
 - AI suggestions
-- Industry-specific prompts
 - Customization mode
 
 ### Progress Tracker
@@ -104,13 +89,11 @@ Prompt-Optimizer-AI/
    - Text processing
 
 2. **Project Summarization**
-   - Industry-specific analysis
    - Key point extraction
    - Summary generation
 
 3. **Prompt Suggestions**
    - AI-generated recommendations
-   - Industry-specific customizations
    - Best practices
 
 4. **Final Optimization**

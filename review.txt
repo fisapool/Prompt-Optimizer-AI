@@ -1,0 +1,70 @@
+# Prompt-Optimizer-AI
+
+A web application that helps users create optimized AI prompts by analyzing their project files and requirements.
+
+## Core Functionality
+
+- Analyzes project files to generate better AI prompts
+- Customizes prompts based on specific industries (software, healthcare, construction, etc.)
+- Provides AI-powered suggestions for prompt improvements
+- Offers real-time chat interface for prompt refinement
+
+## Technical Stack
+
+- Frontend: Next.js with TypeScript
+- Styling: Tailwind CSS
+- UI Components: Radix UI
+- AI Integration: Custom prompt generation and analysis
+
+## Core Workflow
+
+1. User uploads project files
+2. Selects industry
+3. Receives AI-generated project summary
+4. Gets prompt suggestions
+5. Customizes prompt through chat interface
+6. Obtains final optimized prompt
+
+## Components
+
+### Core Components
+- `FileUpload.tsx`: Drag-and-drop file upload with multi-file support
+- `FilePreview.tsx`: Chunked file content preview with "Load More" functionality
+- `IndustrySelector.tsx`: Industry selection dropdown with icons
+- `ChatInterface.tsx`: Chat interface for prompt customization
+- `ProgressTracker.tsx`: Visual progress tracking through stages
+
+### UI Components
+- `loading.tsx`: Loading spinner
+- `skeleton.tsx`: Skeleton loading state
+- `avatar.tsx`: Chat message avatar
+- `tooltip.tsx`: UI hints
+- `progress.tsx`: Progress bar
+
+### Supporting Infrastructure
+- `error-handling.ts`: Error handling service with retry logic
+- `progress-stages.ts`: Progress stage constants
+- `types/index.ts`: TypeScript type definitions
+- `generate-optimized-prompt.ts`: AI prompt generation flow
+
+## Main Page Integration (`app/page.tsx`)
+- Integrated component workflow
+- State management for files, industry, and prompts
+- Progress tracking
+- Error handling and user feedback
+
+## Testing Requirements
+
+### Functionality Testing
+- File upload and preview
+- Industry selection and prompt suggestions
+- Chat interface interactions
+- Progress tracking
+- Error handling
+
+### Technical Testing
+- File type support (.txt, .csv, .json, .pdf, .docx)
+- Text extraction accuracy
+- AI flow integration
+- UI responsiveness
+- Accessibility compliance 

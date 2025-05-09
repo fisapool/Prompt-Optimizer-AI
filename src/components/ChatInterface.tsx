@@ -3,7 +3,7 @@
 
 import type * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Sparkles, Wand2, Trash2 } from 'lucide-react'; // Added Trash2
+import { Send, User, Bot, Loader2, Sparkles, Wand2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,10 +13,11 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"; // Import Tooltip components
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { Card, CardTitle, CardDescription } from "./ui/card";
-import { Badge } from "./ui/badge";
+import { Card, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loading } from "@/components/ui/loading";
 
 export interface Message {
   id: string;
@@ -61,27 +62,27 @@ const staticExamplePrompts: Record<string, string[]> = {
 interface ChatInterfaceProps {
   messages: Message[];
   onSendMessage: (message: string) => Promise<void>;
-  onClearChat: () => void; // Add clear chat handler prop
-  isLoading: boolean; // Loading state for sending/receiving chat messages (now just for UI feedback)
-  disabled?: boolean; // If the entire chat interface should be disabled
-  promptSuggestions: string[]; // Dynamic suggestions from AI
-  isLoadingSuggestions: boolean; // Loading state for fetching dynamic suggestions
-  industry?: string | null; // Selected industry for fallback prompts
-  chatPurpose?: 'chat' | 'customization'; // New prop to differentiate behavior
-  promptCustomizations: string[]; // Add this line
+  onClearChat: () => void;
+  isLoading: boolean;
+  disabled?: boolean;
+  promptSuggestions: string[];
+  isLoadingSuggestions: boolean;
+  industry?: string | null;
+  chatPurpose?: 'chat' | 'customization';
+  promptCustomizations: string[];
 }
 
 export function ChatInterface({
   messages,
   onSendMessage,
-  onClearChat, // Destructure clear chat handler
+  onClearChat,
   isLoading,
   disabled = false,
   promptSuggestions,
   isLoadingSuggestions,
   industry,
-  chatPurpose = 'chat', // Default to 'chat'
-  promptCustomizations // Add this line
+  chatPurpose = 'chat',
+  promptCustomizations
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -91,29 +92,26 @@ export function ChatInterface({
   };
 
   const handleSendClick = () => {
-    // In customization mode, sending just adds the input to the state via onSendMessage
     if (input.trim() && !isLoading && !disabled) {
-      onSendMessage(input.trim()); // This function now just updates local state
+      onSendMessage(input.trim());
       setInput('');
     }
   };
 
-   const handlePromptClick = (prompt: string) => {
-     if (!isLoading && !disabled) {
-       // Append the suggestion to the current input, separated by a newline
-       setInput((prevInput) => {
-          const trimmedInput = prevInput.trim();
-          if (trimmedInput === '') {
-            return prompt;
-          } else {
-            return `${trimmedInput}\n${prompt}`; // Append with a newline
-          }
-       });
-       // Focus the input field after adding a suggestion
-       const inputElement = document.querySelector<HTMLInputElement>('[aria-label="Chat input"]');
-       inputElement?.focus();
-     }
-   };
+  const handlePromptClick = (prompt: string) => {
+    if (!isLoading && !disabled) {
+      setInput((prevInput) => {
+        const trimmedInput = prevInput.trim();
+        if (trimmedInput === '') {
+          return prompt;
+        } else {
+          return `${trimmedInput}\n${prompt}`;
+        }
+      });
+      const inputElement = document.querySelector<HTMLInputElement>('[aria-label="Chat input"]');
+      inputElement?.focus();
+    }
+  };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -124,13 +122,12 @@ export function ChatInterface({
 
   const handleClearClick = () => {
     if (!isLoading && !disabled) {
-        onClearChat();
-        setInput(''); // Clear input field as well
+      onClearChat();
+      setInput('');
     }
   };
 
   useEffect(() => {
-    // Auto-scroll logic remains the same
     if (scrollAreaRef.current) {
       const viewport = scrollAreaRef.current.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
       if (viewport) {
@@ -139,12 +136,10 @@ export function ChatInterface({
         });
       }
     }
-  }, [messages, isLoading, isLoadingSuggestions]); // Scroll when suggestions load too
+  }, [messages, isLoading, isLoadingSuggestions]);
 
   const displayMessages = messages.filter(msg => msg.role !== 'system');
 
-  // Determine which prompts to display
-  // Group AI suggestions if present
   const aiSuggestions = promptSuggestions.length > 0 ? promptSuggestions : [];
   const fallbackSuggestions = (industry && staticExamplePrompts[industry]) ? staticExamplePrompts[industry] : staticExamplePrompts.general;
 
@@ -161,17 +156,16 @@ export function ChatInterface({
     : (promptSuggestions.length > 0 ? "Suggested prompts based on your data:" : "Need inspiration? Try these examples:");
   const suggestionsFooter = chatPurpose === 'customization' ? "Or type your own customization below." : "Or type your own question below.";
   const disabledText = chatPurpose === 'customization'
-      ? "Please select industry, upload file(s), and generate the summary & suggestions to enable prompt customization."
-      : "Please select industry, upload file(s), and generate the summary & suggestions to enable chat.";
+    ? "Please select industry, upload file(s), and generate the summary & suggestions to enable prompt customization."
+    : "Please select industry, upload file(s), and generate the summary & suggestions to enable chat.";
 
   return (
-    <TooltipProvider delayDuration={100}> {/* Wrap with TooltipProvider */}
-      <div className="flex flex-col h-[500px] border rounded-lg overflow-hidden">
+    <TooltipProvider delayDuration={100}>
+      <div className="flex flex-col min-h-[600px] border rounded-lg overflow-hidden max-w-4xl">
         <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-          <div className="space-y-4">
-            {/* Show prompt suggestions area only if enabled and messages are empty */}
+          <div className="space-y-4 w-full">
             {!disabled && displayMessages.length === 0 && (
-              <div className="text-center text-muted-foreground p-4 space-y-4">
+              <div className="text-center text-muted-foreground p-4 space-y-4 flex flex-col items-center w-full min-h-[400px]">
                 {isLoadingSuggestions ? (
                   <div className="flex items-center justify-center gap-2 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -179,49 +173,47 @@ export function ChatInterface({
                   </div>
                 ) : (
                   <>
-                    {/* AI Suggestions Section */}
                     {aiSuggestions.length > 0 && (
-                      <div className="mb-2">
+                      <div className="mb-2 w-full">
                         <div className="flex items-center justify-center gap-2">
                           <Wand2 className="h-5 w-5 text-blue-500" />
                           <span className="font-semibold text-blue-700">AI Suggestions</span>
                           <span className="ml-2 px-2 py-0.5 rounded bg-blue-100 text-xs text-blue-700">AI</span>
                         </div>
-                        <div className="flex flex-wrap justify-center gap-2 mt-2">
+                        <div className="flex flex-wrap justify-center gap-2 mt-2 w-full">
                           {aiSuggestions.slice(0, 4).map((prompt, index) => (
                             <Button
                               key={index}
                               variant="outline"
                               size="sm"
-                              className="text-xs md:text-sm border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-800"
+                              className="text-xs md:text-sm border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-800 whitespace-normal text-left h-auto py-2 px-3"
                               onClick={() => handlePromptClick(prompt)}
                               disabled={isLoading || isLoadingSuggestions}
                             >
-                              <Sparkles className="inline-block mr-1 h-4 w-4 text-blue-400" />
-                              {prompt}
+                              <Sparkles className="inline-block mr-1 h-4 w-4 text-blue-400 flex-shrink-0" />
+                              <span className="break-words">{prompt}</span>
                             </Button>
                           ))}
                         </div>
                       </div>
                     )}
-                    {/* Fallback/User Suggestions Section */}
                     {fallbackSuggestions.length > 0 && (
-                      <div>
+                      <div className="w-full">
                         <div className="flex items-center justify-center gap-2">
                           <User className="h-5 w-5 text-green-500" />
                           <span className="font-semibold text-green-700">Your Customizations</span>
                         </div>
-                        <div className="flex flex-wrap justify-center gap-2 mt-2">
+                        <div className="flex flex-wrap justify-center gap-2 mt-2 w-full">
                           {fallbackSuggestions.slice(0, 4).map((prompt, index) => (
                             <Button
                               key={index}
                               variant="outline"
                               size="sm"
-                              className="text-xs md:text-sm border-green-400 bg-green-50 hover:bg-green-100 text-green-800"
+                              className="text-xs md:text-sm border-green-400 bg-green-50 hover:bg-green-100 text-green-800 whitespace-normal text-left h-auto py-2 px-3"
                               onClick={() => handlePromptClick(prompt)}
                               disabled={isLoading || isLoadingSuggestions}
                             >
-                              {prompt}
+                              <span className="break-words">{prompt}</span>
                             </Button>
                           ))}
                         </div>
@@ -232,14 +224,12 @@ export function ChatInterface({
                 )}
               </div>
             )}
-            {/* Message displayed when prerequisites are not met (chat explicitly disabled) */}
             {disabled && displayMessages.length === 0 && !isLoading && (
               <div className="text-center text-muted-foreground p-4">
                 {disabledText}
               </div>
             )}
 
-            {/* Display actual messages (user inputs and potential future system responses) */}
             {displayMessages.map((message) => (
               <div
                 key={message.id}
@@ -248,7 +238,6 @@ export function ChatInterface({
                   message.role === 'user' ? 'justify-end' : 'justify-start'
                 )}
               >
-                {/* In customization mode, we might not have assistant messages, but keep for flexibility */}
                 {message.role === 'assistant' && (
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarFallback><Bot size={18} /></AvatarFallback>
@@ -259,10 +248,9 @@ export function ChatInterface({
                     "max-w-[85%] rounded-lg px-4 py-2 break-words text-sm md:text-base shadow-sm",
                     message.role === 'user'
                       ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground' // System/Assistant messages for context if needed
+                      : 'bg-muted text-muted-foreground'
                   )}
                 >
-                  {/* Handle multiline content */}
                   {message.content.split('\n').map((line, index) => (
                     <p key={index} className={cn("min-h-[1em]", index > 0 ? "mt-1" : "")}>{line || '\u00A0'}</p>
                   ))}
@@ -274,15 +262,13 @@ export function ChatInterface({
                 )}
               </div>
             ))}
-            {/* Loading indicator (less likely needed in customization mode unless suggestions are slow) */}
-            {isLoading && chatPurpose === 'chat' && ( // Only show for actual chat interaction loading
-              <div className="flex items-start gap-3 justify-start">
+            {isLoading && chatPurpose === 'chat' && (
+              <div className="flex items-start gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <Avatar className="h-8 w-8 flex-shrink-0">
                   <AvatarFallback><Bot size={18} /></AvatarFallback>
                 </Avatar>
                 <div className="bg-muted text-muted-foreground rounded-lg px-4 py-2 flex items-center space-x-2 shadow-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                   <span>Analyzing...</span>
+                  <Loading text="Analyzing" size="sm" />
                 </div>
               </div>
             )}
@@ -295,7 +281,7 @@ export function ChatInterface({
                 variant="ghost"
                 size="icon"
                 onClick={handleClearClick}
-                disabled={isLoading || disabled || displayMessages.length === 0} // Disable if no messages or processing
+                disabled={isLoading || disabled || displayMessages.length === 0}
                 className="mr-2 text-muted-foreground hover:text-destructive"
                 aria-label={clearButtonTooltip}
               >
@@ -314,17 +300,17 @@ export function ChatInterface({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             className="flex-1 mr-2"
-            disabled={isLoading || disabled || isLoadingSuggestions} // Disable during suggestion loading too
+            disabled={isLoading || disabled || isLoadingSuggestions}
             aria-label="Chat input"
           />
           <Button
             onClick={handleSendClick}
             disabled={isLoading || !input.trim() || disabled || isLoadingSuggestions}
             aria-label={sendButtonLabel}
+            className="transition-all duration-200 ease-in-out"
           >
-            {/* Keep spinner for potential future async actions, but less critical now */}
             {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loading text="Sending" size="sm" />
             ) : (
               <Send className="h-4 w-4" />
             )}

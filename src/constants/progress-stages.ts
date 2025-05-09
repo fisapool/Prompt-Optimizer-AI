@@ -29,4 +29,4 @@ export const PROGRESS_STAGES: ProgressStage[] = [
     status: 'pending',
     progress: 0
   }
-]; 
+];

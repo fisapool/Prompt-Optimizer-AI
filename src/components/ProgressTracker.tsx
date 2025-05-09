@@ -22,13 +22,18 @@ interface ProgressTrackerProps {
 const getStageIcon = (status: ProgressStage['status']) => {
   switch (status) {
     case 'completed':
-      return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+      return <CheckCircle2 className="h-5 w-5 text-green-500 transition-colors duration-200" />;
     case 'in-progress':
-      return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
+      return (
+        <div className="relative">
+          <Loader2 className="h-5 w-5 text-blue-500 animate-spin transition-all duration-300" />
+          <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/20" />
+        </div>
+      );
     case 'error':
-      return <AlertCircle className="h-5 w-5 text-red-500" />;
+      return <AlertCircle className="h-5 w-5 text-red-500 transition-colors duration-200" />;
     default:
-      return <Circle className="h-5 w-5 text-gray-400" />;
+      return <Circle className="h-5 w-5 text-gray-400 transition-colors duration-200" />;
   }
 };
 
@@ -51,6 +56,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
           role="button"
           tabIndex={onStageClick ? 0 : -1}
           aria-label={`${stage.name} - ${stage.status}`}
+          data-testid="stage-container"
         >
           <div className="w-8 h-8 rounded-full flex items-center justify-center">
             {getStageIcon(stage.status)}
@@ -64,7 +70,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
             </div>
             <Progress 
               value={stage.progress} 
-              className="mt-2"
+              className="mt-2 transition-all duration-500 ease-in-out"
               aria-label={`Progress for ${stage.name}`}
             />
             <p className="text-sm text-muted-foreground mt-1">
@@ -75,4 +81,4 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
       ))}
     </div>
   );
-}; 
+};

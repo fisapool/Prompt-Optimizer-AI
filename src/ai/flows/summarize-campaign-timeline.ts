@@ -8,7 +8,7 @@
  * - SummarizeCampaignTimelineOutput - The return type for the summarizeCampaignTimeline function.
  */
 
-import {ai} from '@/ai/ai-instance';
+import {ai} from '../ai-instance';
 import {z} from 'genkit';
 
 const SummarizeCampaignTimelineInputSchema = z.object({

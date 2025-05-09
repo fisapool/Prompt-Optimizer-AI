@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { Loading } from "@/components/ui/loading";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface FilePreviewProps {
   file: File;
@@ -50,14 +52,40 @@ export const FilePreview: React.FC<FilePreviewProps> = ({ file, chunkSize = 6553
   };
 
   return (
-    <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #eee", padding: 8 }}>
-      <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{content}</pre>
+    <div className="max-h-[400px] overflow-y-auto border rounded-lg p-4">
+      <pre className="whitespace-pre-wrap break-all">{content}</pre>
+      {isLoading && (
+        <div className="space-y-2 mt-4">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-5/6" />
+        </div>
+      )}
       {hasMore && (
-        <button onClick={handleLoadMore} disabled={isLoading} style={{ marginTop: 8 }}>
-          {isLoading ? "Loading..." : "Load More"}
+        <button
+          onClick={handleLoadMore}
+          disabled={isLoading}
+          className={`
+            mt-4 px-4 py-2 rounded-md transition-all duration-200
+            ${isLoading 
+              ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+              : 'bg-primary text-primary-foreground hover:bg-primary/90'
+            }
+            flex items-center justify-center space-x-2
+          `}
+        >
+          {isLoading ? (
+            <Loading text="Loading more content" size="sm" />
+          ) : (
+            'Load More'
+          )}
         </button>
       )}
-      {!hasMore && <div style={{ color: "#888", marginTop: 8 }}>End of file</div>}
+      {!hasMore && (
+        <div className="text-muted-foreground mt-4 text-sm">
+          End of file
+        </div>
+      )}
     </div>
   );
 };

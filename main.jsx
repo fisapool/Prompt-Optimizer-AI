@@ -1,0 +1,1 @@
+import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport PromptCustomizationFlow from './src/ai/flows/current wireframe.jsx';\n\nconst root = ReactDOM.createRoot(document.getElementById('root'));\nroot.render(<PromptCustomizationFlow />);

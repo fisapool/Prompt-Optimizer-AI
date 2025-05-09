@@ -9,7 +9,7 @@
  * - IdentifySiteSafetyRisksOutput - The return type for the identifySiteSafetyRisks function.
  */
 
-import {ai} from '@/ai/ai-instance';
+import {ai} from '../ai-instance';
 import {z} from 'genkit';
 
 const IdentifySiteSafetyRisksInputSchema = z.object({

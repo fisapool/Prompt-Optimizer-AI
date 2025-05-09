@@ -1,14 +1,14 @@
 'use client';
 
 import type * as React from 'react';
-import { Building, Code, HeartPulse, Megaphone, HardHat } from 'lucide-react'; // Added HardHat for Construction
+import { Building, Code, HeartPulse, Megaphone, HardHat } from 'lucide-react';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
 export interface Industry {
@@ -62,3 +62,5 @@ export function IndustrySelector({
     </div>
   );
 }
+
+export default IndustrySelector;
