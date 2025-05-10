@@ -480,33 +480,6 @@ Would you like me to:
       const fileArray = Array.from(files);
       const uploaded = await Promise.all(
         fileArray.map(async (file, index) => {
-          // Validate file type
-          const validTypes = [
-            'text/plain', 'text/markdown', 'application/json', 'text/csv',
-            'application/javascript', 'application/typescript', 'text/x-python',
-            'text/x-java-source', 'text/x-c', 'text/x-c++', 'text/x-csharp',
-            'text/x-go', 'text/x-ruby', 'text/x-php', 'text/x-rust',
-            'text/x-swift', 'text/x-kotlin', 'text/x-scala', 'text/x-sql',
-            'text/html', 'text/css', 'text/x-scss', 'text/x-less',
-            'text/xml', 'text/yaml', 'text/x-ini', 'text/x-env',
-            'text/x-shellscript', 'text/x-batch', 'text/x-powershell',
-            'text/x-dockerfile', 'text/x-toml', 'text/x-config',
-            'text/x-properties', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'application/vnd.ms-project'
-          ];
-
-          if (!validTypes.includes(file.type)) {
-            throw new Error(`Invalid file type: ${file.type}. Please upload a supported file type.`);
-          }
-
-          // Check file size (max 10MB)
-          const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-          if (file.size > MAX_FILE_SIZE) {
-            throw new Error(`File ${file.name} is too large. Maximum size is 10MB.`);
-          }
-
           // Create a new FileReader for each file
           const reader = new FileReader();
           

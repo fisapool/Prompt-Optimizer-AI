@@ -17,13 +17,17 @@ const SUPPORTED_FILE_TYPES = {
   // Text files
   '.txt': ['text/plain'] as const,
   '.md': ['text/markdown', 'text/x-markdown'] as const,
-  '.csv': ['text/csv', 'application/csv'] as const,
+  '.csv': ['text/csv', 'application/csv', 'text/plain', 'application/vnd.ms-excel'] as const,
   
   // Document files
+  '.xls': ['application/vnd.ms-excel'] as const,
   '.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'] as const,
   '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'] as const,
   '.pdf': ['application/pdf'] as const,
 } as const;
+
+// Maximum file size (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // Create a type for all possible MIME types
 type SupportedMimeType = typeof SUPPORTED_FILE_TYPES[keyof typeof SUPPORTED_FILE_TYPES][number];
@@ -58,28 +62,44 @@ export function FileUpload({
 
   // Function to validate file type
   const validateFileType = (file: File): boolean => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      setValidationError(`File ${file.name} is too large. Maximum size is 10MB.`);
+      return false;
+    }
+
     // Get the file extension
     const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
-    
-    // Special handling for spreadsheet files
-    if (fileExtension === '.xls' || fileExtension === '.xlsx') {
-      if (file.type === 'application/vnd.ms-excel' || 
-          file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-        // This is a supported spreadsheet file
-        return true;
-      } else {
-        setValidationError('We do not support these types of file uploads, remove these types');
-        return false;
-      }
-    }
-    
-    // For other file types, check if the file's MIME type is in our supported list
-    const isValidMimeType = SUPPORTED_MIME_TYPES.includes(file.type as SupportedMimeType);
     
     // Check if the extension is in our supported list
     const isValidExtension = Object.keys(SUPPORTED_FILE_TYPES).includes(fileExtension);
     
-    return isValidMimeType || isValidExtension;
+    if (!isValidExtension) {
+      const supportedTypes = Object.keys(SUPPORTED_FILE_TYPES).join(', ');
+      setValidationError(`Invalid file type: ${fileExtension} files are not supported. Please upload one of the following file types: ${supportedTypes}`);
+      return false;
+    }
+    
+    // Get the allowed MIME types for this extension
+    const allowedMimeTypes = SUPPORTED_FILE_TYPES[fileExtension as keyof typeof SUPPORTED_FILE_TYPES];
+    
+    // Special handling for CSV files
+    if (fileExtension === '.csv') {
+      // Accept any text-based MIME type for CSV files
+      if (file.type.startsWith('text/') || file.type === 'application/csv' || file.type === 'application/vnd.ms-excel') {
+        return true;
+      }
+    }
+    
+    // For other files, check if the file's MIME type is allowed
+    const isValidMimeType = (allowedMimeTypes as readonly string[]).includes(file.type);
+    
+    if (!isValidMimeType) {
+      setValidationError(`Invalid file type: The file's format (${file.type}) does not match the expected format for ${fileExtension} files.`);
+      return false;
+    }
+    
+    return true;
   };
 
   const handleFiles = useCallback((files: FileList | null) => {
@@ -90,8 +110,7 @@ export function FileUpload({
       const invalidFiles = newFiles.filter(file => !validateFileType(file));
       
       if (invalidFiles.length > 0) {
-        const supportedTypes = Object.keys(SUPPORTED_FILE_TYPES).join(', ');
-        setValidationError(`There seems to be an issue with the file. Supported file types: ${supportedTypes}`);
+        // Error message is already set by validateFileType
         return;
       }
       
