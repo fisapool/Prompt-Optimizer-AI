@@ -397,8 +397,10 @@ Would you like me to:
     setProjectSummary(null);
     setPromptSuggestions([]);
     setExpectedOutput(null);
-    setStageStatus('summarization', 'in-progress');
-    setStageProgress('summarization', 50);
+    
+    // Update AI analysis stage
+    setStageStatus('ai-analysis', 'in-progress');
+    setStageProgress('ai-analysis', 10); // Initial progress
 
     try {
       // Step 1: Generate Project Summary
@@ -410,12 +412,17 @@ Would you like me to:
           mimeType: f.mimeType,
         })),
       };
+      
+      // Update progress before summary generation
+      setStageProgress('ai-analysis', 20);
+      
       const summaryResponse = await errorHandler.withRetry('ai-analysis', () => 
         summarizeProjectData(summaryInput)
       );
       setProjectSummary(summaryResponse.summary);
-      setStageStatus('summarization', 'completed');
-      setStageProgress('summarization', 100);
+      
+      // Update progress after summary generation
+      setStageProgress('ai-analysis', 40);
 
       // Step 2: Generate Suggestions
       const combinedText = uploadedFiles.map(f => f.textContent || '').join('\n').trim();
@@ -423,24 +430,33 @@ Would you like me to:
         throw new Error("Uploaded files do not contain any extractable text content.");
       }
 
-      setStageStatus('suggestion-generation', 'in-progress');
-      setStageProgress('suggestion-generation', 50);
+      // Update progress before suggestions generation
+      setStageProgress('ai-analysis', 60);
 
       const suggestionsInput: GeneratePromptSuggestionsInput = {
         industry: selectedIndustry.value,
         projectSummary: summaryResponse.summary,
         combinedFileTextContent: combinedText,
       };
+      
+      // Update progress during suggestions generation
+      setStageProgress('ai-analysis', 80);
+      
       const suggestionsResponse = await errorHandler.withRetry('suggestion-generation', () => 
         generatePromptSuggestions(suggestionsInput)
       );
       setPromptSuggestions(suggestionsResponse.suggestions);
-      setStageStatus('suggestion-generation', 'completed');
-      setStageProgress('suggestion-generation', 100);
-
+      
+      // Update progress after suggestions generation
+      setStageProgress('ai-analysis', 90);
+      
       // After generating suggestions, create the example output
       const exampleOutput = generateExampleOutput(summaryResponse.summary, suggestionsResponse.suggestions);
       setExpectedOutput(exampleOutput);
+
+      // Complete the AI analysis stage
+      setStageProgress('ai-analysis', 100);
+      setStageStatus('ai-analysis', 'completed');
 
       // Save settings after successful analysis
       setSavedSettings({
@@ -457,8 +473,8 @@ Would you like me to:
       setError(`Analysis failed: ${error.message}`);
       setProjectSummary(null);
       setPromptSuggestions([]);
-      setStageStatus('summarization', 'error');
-      setStageStatus('suggestion-generation', 'error');
+      setStageStatus('ai-analysis', 'error');
+      setStageProgress('ai-analysis', 0);
     } finally {
       setIsSummarizing(false);
       setIsGeneratingSuggestions(false);
@@ -475,6 +491,10 @@ Would you like me to:
     setUploadStatus('uploading');
     setUploadProgress(0);
     setUploadError(null);
+    
+    // Set file upload stage to in-progress
+    setStageStatus('file-upload', 'in-progress');
+    setStageProgress('file-upload', 0);
 
     try {
       const fileArray = Array.from(files);
@@ -500,6 +520,7 @@ Would you like me to:
           // Update progress for this file
           const fileProgress = ((index + 1) / fileArray.length) * 100;
           setUploadProgress(fileProgress);
+          setStageProgress('file-upload', fileProgress);
 
           return {
             name: file.name,
@@ -513,6 +534,39 @@ Would you like me to:
       setUploadStatus('processing');
       setUploadedFiles(uploaded);
       setUploadProgress(100);
+      setStageProgress('file-upload', 100);
+      setStageStatus('file-upload', 'completed');
+      
+      // Move to text extraction stage
+      setStageStatus('text-extraction', 'in-progress');
+      setStageProgress('text-extraction', 0);
+      
+      // Start text extraction process with more granular progress updates
+      const totalFiles = uploaded.length;
+      let processedFiles = 0;
+      
+      // Process each file and update progress
+      for (const file of uploaded) {
+        const { success } = extractTextFromDataUri(file.dataUri, file.mimeType);
+        processedFiles++;
+        const progress = Math.round((processedFiles / totalFiles) * 100);
+        setStageProgress('text-extraction', progress);
+      }
+      
+      // Ensure we reach 100% if all files were processed
+      if (processedFiles === totalFiles) {
+        setStageProgress('text-extraction', 100);
+      }
+      
+      setStageStatus('text-extraction', 'completed');
+      
+      // Move to AI analysis stage
+      setStageStatus('ai-analysis', 'in-progress');
+      setStageProgress('ai-analysis', 0);
+      
+      // Trigger AI analysis
+      await handleAnalyzeProject();
+      
       setUploadStatus('idle');
 
       // Show success message
@@ -526,6 +580,10 @@ Would you like me to:
       setUploadError(errorMessage);
       setUploadStatus('error');
       setUploadProgress(0);
+      
+      // Set error state for current stage
+      setStageStatus('file-upload', 'error');
+      setStageProgress('file-upload', 0);
       
       toast({
         title: "Error",
